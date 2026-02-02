@@ -25,13 +25,14 @@ model User {
   last_active_at DateTime?
 
   // Relations
-  posts      Post[]
-  comments   Comment[]
-  reviews    Review[]
-  schedules  Schedule[]
-  reports    Report[]   @relation("Reporter")
-  blocks     Block[]    @relation("Blocker")
-  blocked_by Block[]    @relation("Blocked")
+  posts       Post[]
+  comments    Comment[]
+  reviews     Review[]
+  schedules   Schedule[]
+  reports     Report[]   @relation("Reporter")
+  blocks      Block[]    @relation("Blocker")
+  blocked_by  Block[]    @relation("Blocked")
+  pinned_boards PinnedBoard[]
 
   @@index([email])
   @@index([status])
@@ -56,9 +57,24 @@ model Board {
   visibility String @default("school_only")
   anon_mode  String // 'optional', 'forced', 'disabled'
 
-  posts Post[]
+  posts        Post[]
+  pinned_by    PinnedBoard[]
 
   @@index([key])
+}
+
+model PinnedBoard {
+  id         String   @id @default(uuid())
+  user_id    String
+  board_id   String
+  created_at DateTime @default(now())
+
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  board Board @relation(fields: [board_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, board_id])
+  @@index([user_id])
+  @@index([board_id])
 }
 
 model Post {
@@ -307,4 +323,84 @@ model EmailVerificationCode {
 
   @@index([email, code])
   @@index([expires_at])
+}
+
+// Course Catalog Models
+model CourseCatalogCourse {
+  id            String   @id @default(uuid())
+  subject_code  String
+  course_number String
+  title         String
+  description   String?  @db.Text
+  credit_min    Int?
+  credit_max    Int?
+  last_seen_term String?
+  source_url    String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  // Relations
+  tags          CourseCatalogTag[]
+  prerequisites CoursePrerequisite[]
+
+  @@unique([subject_code, course_number])
+  @@index([subject_code])
+  @@index([subject_code, course_number])
+  @@index([last_seen_term])
+}
+
+model CourseCatalogTag {
+  id         String   @id @default(uuid())
+  course_id  String
+  tag_type   String   // 'requirement_grouping', 'department', 'level', etc.
+  tag_value  String
+  created_at DateTime @default(now())
+
+  course CourseCatalogCourse @relation(fields: [course_id], references: [id], onDelete: Cascade)
+
+  @@index([course_id])
+  @@index([tag_type, tag_value])
+}
+
+model CoursePrerequisite {
+  id           String   @id @default(uuid())
+  course_id    String
+  raw_text     String   @db.Text
+  parsed_json  Json?    // Structured prerequisite data
+  confidence   Float    @default(0.0) // 0.0 to 1.0
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  course CourseCatalogCourse @relation(fields: [course_id], references: [id], onDelete: Cascade)
+
+  @@index([course_id])
+}
+
+enum CrawlJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model CrawlJob {
+  id            String          @id @default(uuid())
+  status        CrawlJobStatus  @default(PENDING)
+  term          String?
+  subject       String?
+  query         String?
+  started_at    DateTime?
+  finished_at   DateTime?
+  params        Json?           // Additional crawl parameters
+  error_log     String?          @db.Text
+  pages_fetched Int             @default(0)
+  courses_found Int             @default(0)
+  courses_saved Int             @default(0)
+  created_at    DateTime        @default(now())
+  updated_at    DateTime        @updatedAt
+
+  @@index([status])
+  @@index([subject, term])
+  @@index([created_at])
 }

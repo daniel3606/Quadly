@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const createPostSchema = z.object({
   title: z.string().min(1).max(200),
   body: z.string().min(1).max(10000),
-  is_anonymous: z.boolean().optional(),
+  is_anonymous: z.coerce.boolean().optional(),
 });
 
 export const updatePostSchema = z.object({
@@ -13,7 +13,7 @@ export const updatePostSchema = z.object({
 
 export const createCommentSchema = z.object({
   body: z.string().min(1).max(5000),
-  is_anonymous: z.boolean().optional(),
+  is_anonymous: z.coerce.boolean().optional(),
 });
 
 export const updateCommentSchema = z.object({

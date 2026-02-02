@@ -75,12 +75,12 @@ quadly/
 3. JWT 토큰 발급
 4. 이후 요청에 Bearer Token 포함
 
-## 익명 정책
+## Anonymous Policy
 
-- **자유게시판**: 익명 선택 가능
-- **비밀게시판**: 강제 익명
-- **정보게시판**: 기본 닉네임, 익명 선택 가능
-- **인기게시판**: 원본 게시판 설정 따름
+- **General Board**: Anonymous optional
+- **Private Board**: Anonymous forced
+- **Info Board**: Default nickname, anonymous optional
+- **Hot Board**: Follows original board settings
 
 시스템 내부에서는 항상 `user_id`를 추적하여 악성 사용자 제재 가능.
 

@@ -7,7 +7,7 @@ import { BoardsService } from './boards/boards.service';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // CORS 설정
+  // CORS configuration
   app.enableCors({
     origin: process.env.WEB_URL || 'http://localhost:3000',
     credentials: true,
@@ -25,7 +25,7 @@ async function bootstrap() {
   // API prefix
   app.setGlobalPrefix('api');
 
-  // Swagger 설정
+  // Swagger configuration
   const config = new DocumentBuilder()
     .setTitle('Quadly API')
     .setDescription('Quadly Campus Community Platform API')

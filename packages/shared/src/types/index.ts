@@ -16,7 +16,7 @@ export interface User {
 }
 
 // Board Types
-export type BoardKey = 'free' | 'secret' | 'info' | 'hot';
+export type BoardKey = 'free' | 'secret' | 'info' | 'hot' | 'cs';
 export type BoardVisibility = 'school_only';
 
 export interface Board {

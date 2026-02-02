@@ -9,3 +9,4 @@ export * from './schemas/schedule';
 
 // Utils
 export * from './utils/hot-score';
+export * from './utils/anonymous-handle';
