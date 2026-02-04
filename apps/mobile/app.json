@@ -3,6 +3,10 @@
     "name": "Quadly",
     "slug": "quadly",
     "version": "0.1.0",
+    "extra": {
+      "supabaseUrl": "https://waahgmnfykmrlxuvxerw.supabase.co",
+      "supabaseAnonKey": "sb_publishable_L--eGWYoL2TKOsUgfBaA1Q_KeTiC96_"
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -28,6 +32,10 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "quadly"
+    "scheme": "quadly",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ]
   }
 }

@@ -6,6 +6,10 @@
     "packages/*",
     "apps/*"
   ],
+  "overrides": {
+    "react": "19.1.0",
+    "react-native": "0.81.5"
+  },
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",

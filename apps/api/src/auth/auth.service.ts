@@ -7,6 +7,7 @@ import {
   RequestEmailCodeInput,
   VerifyEmailCodeInput,
   LoginInput,
+  OnboardingInput,
 } from '@quadly/shared';
 
 @Injectable()
@@ -236,5 +237,36 @@ export class AuthService {
       email: user.email,
       role: user.role,
     });
+  }
+
+  async completeOnboarding(userId: string, input: OnboardingInput) {
+    const { graduation_year, gender, major } = input;
+
+    // Convert gender to Prisma enum format (uppercase)
+    const genderEnum = gender.toUpperCase() as 'MALE' | 'FEMALE' | 'NONBINARY';
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        graduation_year,
+        gender: genderEnum,
+        major,
+        onboarding_completed: true,
+      },
+    });
+
+    return {
+      id: user.id,
+      email: user.email,
+      nickname: user.nickname,
+      email_verified: user.email_verified,
+      role: user.role,
+      school: user.school,
+      graduation_year: user.graduation_year,
+      gender: user.gender?.toLowerCase() || null,
+      major: user.major,
+      onboarding_completed: user.onboarding_completed,
+      profile_image_url: user.profile_image_url,
+    };
   }
 }

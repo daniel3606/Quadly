@@ -24,6 +24,15 @@ export const loginSchema = z.object({
   password: z.string().min(8),
 });
 
+export const genderSchema = z.enum(['male', 'female', 'nonbinary']);
+
+export const onboardingSchema = z.object({
+  graduation_year: z.number().int().min(2024).max(2035),
+  gender: genderSchema,
+  major: z.string().min(1).max(100),
+});
+
 export type RequestEmailCodeInput = z.infer<typeof requestEmailCodeSchema>;
 export type VerifyEmailCodeInput = z.infer<typeof verifyEmailCodeSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type OnboardingInput = z.infer<typeof onboardingSchema>;

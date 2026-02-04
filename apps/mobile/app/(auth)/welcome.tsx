@@ -15,6 +15,7 @@ import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../src/store/authStore';
+import { supabase } from '../../src/lib/supabase';
 
 // Ensure WebBrowser auth session completes properly
 WebBrowser.maybeCompleteAuthSession();
@@ -145,38 +146,36 @@ export default function WelcomeScreen() {
       const redirectUri = Linking.createURL('auth/callback');
       console.log('Redirect URI:', redirectUri);
 
-      // Always use quadly.org for OAuth to ensure Google shows the correct domain
-      // The backend at quadly.org must be running and accessible
-      // For local development, you can set oauthApiUrl in app.json extra config
-      const oauthApiUrl = Constants.expoConfig?.extra?.oauthApiUrl || 'https://quadly.org/api';
-      const authUrl = `${oauthApiUrl}/auth/google?mobile=true&redirect_uri=${encodeURIComponent(redirectUri)}`;
-      console.log('Auth URL:', authUrl);
-      console.log('Using OAuth API URL:', oauthApiUrl);
+      // Use Supabase OAuth for Google sign-in
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUri,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      });
 
-      const result = await WebBrowser.openAuthSessionAsync(
-        authUrl,
-        redirectUri
-      );
-
-      console.log('Auth result:', result);
-
-      if (result.type === 'success' && result.url) {
-        const tokenMatch = result.url.match(/token=([^&]+)/);
-        if (tokenMatch) {
-          const token = tokenMatch[1];
-          await setToken(token);
-          try {
-            await fetchUser();
-          } catch (e) {
-            console.log('Failed to fetch user after login:', e);
-          }
-        }
-      } else if (result.type === 'cancel') {
-        console.log('Auth cancelled by user');
+      if (error) {
+        console.error('Supabase OAuth error:', error);
+        Alert.alert('Sign In Failed', error.message || 'Unable to sign in. Please try again.');
+        setIsLoading(false);
+        return;
       }
-    } catch (error) {
+
+      if (data?.url) {
+        // Open the OAuth URL in browser
+        // The deep link handler in _layout.tsx will handle the callback
+        await WebBrowser.openAuthSessionAsync(
+          data.url,
+          redirectUri
+        );
+      }
+    } catch (error: any) {
       console.error('Google sign in error:', error);
-      Alert.alert('Sign In Failed', 'Unable to sign in. Please try again.');
+      Alert.alert('Sign In Failed', error.message || 'Unable to sign in. Please try again.');
     } finally {
       setIsLoading(false);
     }

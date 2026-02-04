@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { apiClient } from '@/lib/api';
@@ -9,9 +9,13 @@ import { ThemeToggle } from './ThemeToggle';
 import { NotificationIcon } from './NotificationIcon';
 import { ProfileIcon } from './ProfileIcon';
 import { NotificationsModal } from './NotificationsModal';
+import { useUser, useSignOut } from '@/lib/auth-client';
 
 export function Header() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user } = useUser();
+  const signOut = useSignOut();
   const [collegeName, setCollegeName] = useState<string>('');
   const [mounted, setMounted] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -23,19 +27,21 @@ export function Header() {
   }, []);
 
   useEffect(() => {
-    // Only run on client side
-    if (typeof window === 'undefined') return;
-    
-    const token = localStorage.getItem('auth_token');
-    if (!token) return;
+    // Only fetch user data if authenticated
+    if (!user) return;
 
-    apiClient.setToken(token);
+    // Get access token for API calls
+    const fetchUserData = async () => {
+      try {
+        // Get Supabase session token for API calls
+        // Note: You may need to update your API client to accept Supabase tokens
+        // For now, keeping existing structure
+        
+        const [userData, universitiesData] = await Promise.all([
+          apiClient.get<{ school: string; role: string }>('/auth/me'),
+          apiClient.get<{ universities: Array<{ id: string; name: string; domain: string }> }>('/auth/universities'),
+        ]);
 
-    Promise.all([
-      apiClient.get<{ school: string; role: string }>('/auth/me'),
-      apiClient.get<{ universities: Array<{ id: string; name: string; domain: string }> }>('/auth/universities'),
-    ])
-      .then(([userData, universitiesData]) => {
         const university = universitiesData.universities.find(
           (u) => u.id === userData.school
         );
@@ -43,12 +49,14 @@ export function Header() {
           setCollegeName(university.name);
         }
         setUserRole(userData.role);
-      })
-      .catch((error) => {
+      } catch (error) {
         console.error('Failed to fetch data:', error);
         // Don't throw error, just log it
-      });
-  }, []);
+      }
+    };
+
+    fetchUserData();
+  }, [user]);
 
   const navItems = [
     { href: '/', label: 'Home' },
@@ -151,6 +159,19 @@ export function Header() {
 
         {/* Action Buttons - Right */}
         <div className="flex items-center gap-3 flex-shrink-0">
+          {user && (
+            <>
+              <span className="text-sm text-gray-600 dark:text-gray-400 hidden sm:block">
+                {user.email}
+              </span>
+              <button
+                onClick={signOut}
+                className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Logout
+              </button>
+            </>
+          )}
           <button
             onClick={() => setNotificationsOpen(true)}
             className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"

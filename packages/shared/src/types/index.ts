@@ -1,6 +1,7 @@
 // User Types
 export type UserStatus = 'active' | 'suspended' | 'deleted';
 export type UserRole = 'user' | 'moderator' | 'admin';
+export type Gender = 'male' | 'female' | 'nonbinary';
 
 export interface User {
   id: string;
@@ -13,6 +14,11 @@ export interface User {
   status: UserStatus;
   role: UserRole;
   last_active_at: Date | null;
+  graduation_year: number | null;
+  gender: Gender | null;
+  major: string | null;
+  onboarding_completed: boolean;
+  profile_image_url: string | null;
 }
 
 // Board Types

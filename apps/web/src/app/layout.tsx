@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ApiProvider } from '@/components/ApiProvider';
 
 export const metadata: Metadata = {
   title: 'Quadly',
@@ -17,7 +18,9 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body>
         <ErrorBoundary>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            <ApiProvider>{children}</ApiProvider>
+          </ThemeProvider>
         </ErrorBoundary>
       </body>
     </html>

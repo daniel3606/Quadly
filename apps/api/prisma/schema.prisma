@@ -11,18 +11,23 @@ datasource db {
 }
 
 model User {
-  id             String     @id @default(uuid())
-  email          String     @unique
-  email_verified Boolean    @default(false)
-  password_hash  String?
-  google_id      String?    @unique
-  school         String     @default("UMICH")
-  nickname       String
-  created_at     DateTime   @default(now())
-  updated_at     DateTime   @updatedAt
-  status         UserStatus @default(ACTIVE)
-  role           UserRole   @default(USER)
-  last_active_at DateTime?
+  id                   String     @id @default(uuid())
+  email                String     @unique
+  email_verified       Boolean    @default(false)
+  password_hash        String?
+  google_id            String?    @unique
+  school               String     @default("UMICH")
+  nickname             String
+  created_at           DateTime   @default(now())
+  updated_at           DateTime   @updatedAt
+  status               UserStatus @default(ACTIVE)
+  role                 UserRole   @default(USER)
+  last_active_at       DateTime?
+  graduation_year      Int?
+  gender               Gender?
+  major                String?
+  onboarding_completed Boolean    @default(false)
+  profile_image_url    String?
 
   // Relations
   posts       Post[]
@@ -48,6 +53,12 @@ enum UserRole {
   USER
   MODERATOR
   ADMIN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  NONBINARY
 }
 
 model Board {

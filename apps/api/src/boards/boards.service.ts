@@ -126,7 +126,7 @@ export class BoardsService {
   }
 
   async getPinnedBoards(userId: string) {
-    return this.prisma.pinnedBoard.findMany({
+    const pinnedBoards = await this.prisma.pinnedBoard.findMany({
       where: {
         user_id: userId,
       },
@@ -137,6 +137,45 @@ export class BoardsService {
         created_at: 'desc',
       },
     });
+
+    // Get the latest post for each pinned board
+    const result = await Promise.all(
+      pinnedBoards.map(async (pinnedBoard) => {
+        const latestPost = await this.prisma.post.findFirst({
+          where: {
+            board_id: pinnedBoard.board_id,
+            status: 'ACTIVE',
+          },
+          orderBy: {
+            created_at: 'desc',
+          },
+          select: {
+            id: true,
+            title: true,
+            created_at: true,
+          },
+        });
+
+        // Check if the post is new (created after the board was pinned)
+        const is_new = latestPost
+          ? new Date(latestPost.created_at) > new Date(pinnedBoard.created_at)
+          : false;
+
+        return {
+          ...pinnedBoard,
+          latest_post: latestPost
+            ? {
+                id: latestPost.id,
+                title: latestPost.title,
+                created_at: latestPost.created_at,
+                is_new,
+              }
+            : null,
+        };
+      }),
+    );
+
+    return result;
   }
 
   async isBoardPinned(userId: string, boardKey: string): Promise<boolean> {

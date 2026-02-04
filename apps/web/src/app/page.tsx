@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api';
 import { Header } from '@/components/Header';
+import { useUser } from '@/lib/auth-client';
 
 interface Post {
   id: string;
@@ -18,21 +19,6 @@ interface Post {
   comment_count: number;
   view_count: number;
   created_at: string;
-}
-
-interface User {
-  id: string;
-  email: string;
-  nickname: string;
-  email_verified: boolean;
-  role: string;
-  school: string;
-}
-
-interface University {
-  id: string;
-  name: string;
-  domain: string;
 }
 
 interface PinnedBoard {
@@ -49,52 +35,56 @@ interface PinnedBoard {
 
 export default function Home() {
   const router = useRouter();
+  const { user, loading: authLoading } = useUser();
   const [hotPosts, setHotPosts] = useState<Post[]>([]);
   const [pinnedBoards, setPinnedBoards] = useState<PinnedBoard[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Only run on client side
-    if (typeof window === 'undefined') return;
-    
-    let cancelled = false;
-    
-    // Check if user is authenticated
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
+    // Redirect to login if not authenticated
+    if (!authLoading && !user) {
       router.push('/login');
-      setLoading(false);
       return;
     }
 
-    // Set token for API client
-    apiClient.setToken(token);
+    // Only fetch data if user is authenticated
+    if (!user) return;
 
-    // Fetch hot posts and pinned boards in parallel
-    Promise.all([
-      apiClient.get<{ data: Post[] }>('/boards/hot/posts?pageSize=5'),
-      apiClient.get<PinnedBoard[]>('/boards/pinned'),
-    ])
-      .then(([postsData, pinnedData]) => {
+    let cancelled = false;
+
+    // Get access token for API calls
+    const fetchData = async () => {
+      try {
+        // Note: You may need to update apiClient to accept Supabase tokens
+        // For now, keeping the existing API client structure
+        // You can pass the token via headers if needed
+        
+        const [postsData, pinnedData] = await Promise.all([
+          apiClient.get<{ data: Post[] }>('/boards/hot/posts?pageSize=5'),
+          apiClient.get<PinnedBoard[]>('/boards/pinned'),
+        ]);
+
         if (!cancelled) {
           setHotPosts(postsData.data || []);
           setPinnedBoards(pinnedData || []);
           setLoading(false);
         }
-      })
-      .catch((error) => {
+      } catch (error) {
         console.error('Failed to fetch data:', error);
         if (!cancelled) {
           setLoading(false);
         }
-      });
+      }
+    };
+
+    fetchData();
 
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [user, authLoading, router]);
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-white dark:bg-gray-900">
         <div className="text-center">
@@ -103,6 +93,10 @@ export default function Home() {
         </div>
       </main>
     );
+  }
+
+  if (!user) {
+    return null; // Will redirect to login
   }
 
   return (
@@ -118,6 +112,11 @@ export default function Home() {
           <p className="text-gray-600 dark:text-gray-400">
             Your campus community hub for discussions, course reviews, and more.
           </p>
+          {user.email && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+              Logged in as: {user.email}
+            </p>
+          )}
         </div>
 
         {/* Pinned Boards Section */}
