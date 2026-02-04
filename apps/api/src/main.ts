@@ -7,10 +7,20 @@ import { BoardsService } from './boards/boards.service';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // CORS configuration
+  // CORS configuration - allow web, mobile, and quadly.org origins
+  const allowedOrigins = [
+    process.env.WEB_URL || 'http://localhost:3000',
+    'https://quadly.org',
+    'http://localhost:3000',
+    /^exp:\/\/.*/, // Expo Go
+    /^quadly:\/\/.*/, // Custom scheme
+  ];
+  
   app.enableCors({
-    origin: process.env.WEB_URL || 'http://localhost:3000',
+    origin: allowedOrigins,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
   // Global validation pipe
