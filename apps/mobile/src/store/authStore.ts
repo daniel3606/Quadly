@@ -7,6 +7,7 @@ interface AuthState {
   user: User | null;
   isLoading: boolean;
   isInitialized: boolean;
+  hasInitialized: boolean; // 추가
 
   // Actions
   initialize: () => Promise<void>;
@@ -22,41 +23,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isLoading: true,
   isInitialized: false,
+  hasInitialized: false,
 
   initialize: async () => {
+    if (get().hasInitialized) return; // 핵심
+    set({ hasInitialized: true });
+
     console.log('AuthStore: Starting initialization...');
-    try {
-      // Get the current session from Supabase
-      console.log('AuthStore: Getting session...');
-      const { data: { session }, error } = await supabase.auth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
 
-      if (error) {
-        console.error('AuthStore: Error getting session:', error);
-      }
+    set({
+      session,
+      user: session?.user ?? null,
+      isLoading: false,
+      isInitialized: true,
+    });
 
-      console.log('AuthStore: Session exists:', !!session);
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      set({ session, user: session?.user ?? null });
+    });
 
-      set({
-        session,
-        user: session?.user ?? null,
-        isLoading: false,
-        isInitialized: true,
-      });
-
-      console.log('AuthStore: Initialization complete');
-
-      // Listen for auth state changes
-      supabase.auth.onAuthStateChange((_event, session) => {
-        console.log('AuthStore: Auth state changed, session:', !!session);
-        set({
-          session,
-          user: session?.user ?? null,
-        });
-      });
-    } catch (error) {
-      console.error('AuthStore: Initialize error:', error);
-      set({ isLoading: false, isInitialized: true });
-    }
+    // 필요하면 subscription을 store에 저장해둬도 됨
   },
 
   signInWithEmail: async (email: string, password: string) => {

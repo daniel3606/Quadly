@@ -1,20 +1,21 @@
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { useEffect } from 'react';
+import { useRouter } from 'expo-router';
+import { View, ActivityIndicator } from 'react-native';
+import { useAuthStore } from '../src/store/authStore';
 
 export default function Index() {
-  // This is just a loading screen while auth state is determined
-  // Navigation is handled in _layout.tsx
+  const router = useRouter();
+  const session = useAuthStore(s => s.session);
+  const isInitialized = useAuthStore(s => s.isInitialized);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    router.replace(session ? '/(tabs)' : '/(auth)/login');
+  }, [isInitialized, session]);
+
   return (
-    <View style={styles.container}>
-      <ActivityIndicator size="large" color="#00274C" />
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <ActivityIndicator size="large" />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
