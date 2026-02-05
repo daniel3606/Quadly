@@ -16,6 +16,7 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fontSize, spacing } from '../../src/constants/colors';
 import { useAuthStore } from '../../src/store/authStore';
+import { useScheduleStore, ScheduleItem } from '../../src/store/scheduleStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const TIME_COLUMN_WIDTH = 25;
@@ -59,17 +60,6 @@ const SCHEDULE_COLORS = [
   '#8CC98D',
 ];
 
-interface ScheduleItem {
-  id: string;
-  day: number; // 1-5 (Mon-Fri)
-  className: string;
-  startHour: number; // 7-22
-  startMinute: number; // 0-59
-  endHour: number; // 7-22
-  endMinute: number; // 0-59
-  location: string;
-}
-
 // Example terms - this would typically come from an API
 const TERMS = [
   { label: 'WN25', value: 'WN25' },
@@ -81,12 +71,16 @@ const TERMS = [
 export default function ScheduleScreen() {
   const timeSlots = generateTimeSlots();
   const { user } = useAuthStore();
-  const [selectedTerm, setSelectedTerm] = useState('WN25');
+  const {
+    selectedTerm,
+    setSelectedTerm,
+    schedulesByTerm,
+    addScheduleItems,
+    removeScheduleItem,
+  } = useScheduleStore();
   const [isTermDropdownOpen, setIsTermDropdownOpen] = useState(false);
-  // Store schedules by term
-  const [schedulesByTerm, setSchedulesByTerm] = useState<Record<string, ScheduleItem[]>>({});
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  
+
   // Get schedule items for the currently selected term
   const scheduleItems = schedulesByTerm[selectedTerm] || [];
   
@@ -480,7 +474,6 @@ export default function ScheduleScreen() {
 
                       if (formClassName.trim() && formDays.length > 0 && startH >= 7 && startH <= 22 && endH >= 7 && endH <= 22) {
                         // Create a schedule item for each selected day
-                        const currentTermSchedules = schedulesByTerm[selectedTerm] || [];
                         const newItems: ScheduleItem[] = formDays.map((day, index) => ({
                           id: `${Date.now()}-${index}`,
                           day: day,
@@ -491,12 +484,9 @@ export default function ScheduleScreen() {
                           endMinute: endM,
                           location: formLocation.trim(),
                         }));
-                        
+
                         // Add all items to the current term's schedule
-                        setSchedulesByTerm({
-                          ...schedulesByTerm,
-                          [selectedTerm]: [...currentTermSchedules, ...newItems],
-                        });
+                        addScheduleItems(selectedTerm, newItems);
                         // Reset form
                         setFormDays([1]);
                         setFormClassName('');
@@ -579,11 +569,7 @@ export default function ScheduleScreen() {
                           text: 'Delete',
                           style: 'destructive',
                           onPress: () => {
-                            const currentTermSchedules = schedulesByTerm[selectedTerm] || [];
-                            setSchedulesByTerm({
-                              ...schedulesByTerm,
-                              [selectedTerm]: currentTermSchedules.filter((i) => i.id !== item.id),
-                            });
+                            removeScheduleItem(selectedTerm, item.id);
                           },
                         },
                       ]
