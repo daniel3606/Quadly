@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -41,12 +42,25 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.profileButton}
-          onPress={() => router.push('/(tabs)/settings')}
-        >
-          <Text style={styles.profileInitial}>{userInitial}</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => router.push('/notifications')}
+          >
+            <Image
+              source={require('../../assets/notification_icon.png')}
+              style={styles.notificationIcon}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.profileButton}
+            onPress={() => router.push('/(tabs)/settings')}
+          >
+            <Text style={styles.profileInitial}>{userInitial}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Content */}
@@ -150,6 +164,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#666666',
     marginTop: 1,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  notificationButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationIcon: {
+    width: 24,
+    height: 24,
   },
   profileButton: {
     width: 36,
