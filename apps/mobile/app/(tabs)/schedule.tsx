@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   Modal,
   FlatList,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -45,6 +47,29 @@ const DAYS = [
   { label: 'Fri', value: 5 },
 ];
 
+// Color options for schedule items
+const SCHEDULE_COLORS = [
+  '#E18B7A',
+  '#E5C475',
+  '#AEC97C',
+  '#91CFC2',
+  '#81A4E5',
+  '#EDB071',
+  '#9B88D9',
+  '#8CC98D',
+];
+
+interface ScheduleItem {
+  id: string;
+  day: number; // 1-5 (Mon-Fri)
+  className: string;
+  startHour: number; // 7-22
+  startMinute: number; // 0-59
+  endHour: number; // 7-22
+  endMinute: number; // 0-59
+  location: string;
+}
+
 // Example terms - this would typically come from an API
 const TERMS = [
   { label: 'WN25', value: 'WN25' },
@@ -58,9 +83,65 @@ export default function ScheduleScreen() {
   const { user } = useAuthStore();
   const [selectedTerm, setSelectedTerm] = useState('WN25');
   const [isTermDropdownOpen, setIsTermDropdownOpen] = useState(false);
+  // Store schedules by term
+  const [schedulesByTerm, setSchedulesByTerm] = useState<Record<string, ScheduleItem[]>>({});
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  
+  // Get schedule items for the currently selected term
+  const scheduleItems = schedulesByTerm[selectedTerm] || [];
+  
+  // Form state
+  const [formDays, setFormDays] = useState<number[]>([1]); // Array for multiple day selection
+  const [formClassName, setFormClassName] = useState('');
+  const [formStartHour, setFormStartHour] = useState('9');
+  const [formStartMinute, setFormStartMinute] = useState('0');
+  const [formEndHour, setFormEndHour] = useState('10');
+  const [formEndMinute, setFormEndMinute] = useState('0');
+  const [formLocation, setFormLocation] = useState('');
+  
+  // Toggle day selection
+  const toggleDay = (day: number) => {
+    if (formDays.includes(day)) {
+      // If only one day selected, don't allow deselecting
+      if (formDays.length > 1) {
+        setFormDays(formDays.filter((d) => d !== day));
+      }
+    } else {
+      setFormDays([...formDays, day]);
+    }
+  };
 
   // Get university name from user metadata or use default
   const universityName = (user?.user_metadata?.school as string) || 'University of Michigan';
+
+  // Assign color based on class name (same class = same color)
+  const getColorForClassName = (className: string): string => {
+    // Simple hash function to consistently assign colors
+    let hash = 0;
+    for (let i = 0; i < className.length; i++) {
+      hash = className.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % SCHEDULE_COLORS.length;
+    return SCHEDULE_COLORS[index];
+  };
+
+  // Calculate schedule block position and dimensions
+  const getScheduleBlockStyle = (item: ScheduleItem) => {
+    const headerHeight = 20;
+    const startMinutes = item.startHour * 60 + item.startMinute;
+    const endMinutes = item.endHour * 60 + item.endMinute;
+    const durationMinutes = endMinutes - startMinutes;
+    
+    // Calculate start position (minutes from 7am)
+    const startFrom7am = startMinutes - (7 * 60);
+    const top = headerHeight + (startFrom7am / 60) * HOUR_HEIGHT;
+    const height = (durationMinutes / 60) * HOUR_HEIGHT;
+    
+    return {
+      top,
+      height: Math.max(height, 20), // Minimum height
+    };
+  };
 
   // Calculate current time position
   const getCurrentTimePosition = () => {
@@ -113,7 +194,7 @@ export default function ScheduleScreen() {
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => {
-              // TODO: Navigate to add schedule screen
+              setIsAddModalOpen(true);
             }}
             activeOpacity={0.7}
           >
@@ -174,6 +255,268 @@ export default function ScheduleScreen() {
           </TouchableOpacity>
         </Modal>
 
+        {/* Add Schedule Modal */}
+        <Modal
+          visible={isAddModalOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setIsAddModalOpen(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setIsAddModalOpen(false)}
+            />
+            <SafeAreaView style={styles.modalContainer}>
+              <View style={styles.addModal}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalHeaderText}>Add Schedule</Text>
+                  <TouchableOpacity onPress={() => setIsAddModalOpen(false)}>
+                    <Text style={styles.modalCloseButton}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.formContainer}>
+                  {/* Day Selection */}
+                  <View style={styles.formSection}>
+                    <Text style={styles.formLabel}>Days (select multiple)</Text>
+                    <View style={styles.dayButtons}>
+                      {DAYS.map((day) => (
+                        <TouchableOpacity
+                          key={day.value}
+                          style={[
+                            styles.dayButton,
+                            formDays.includes(day.value) && styles.dayButtonSelected,
+                          ]}
+                          onPress={() => toggleDay(day.value)}
+                        >
+                          <Text
+                            style={[
+                              styles.dayButtonText,
+                              formDays.includes(day.value) && styles.dayButtonTextSelected,
+                            ]}
+                          >
+                            {day.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Class Name */}
+                  <View style={styles.formSection}>
+                    <Text style={styles.formLabel}>Class Name</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={formClassName}
+                      onChangeText={setFormClassName}
+                      placeholder="e.g., CS 101"
+                      placeholderTextColor={colors.textSecondary}
+                    />
+                  </View>
+
+                  {/* Start Time */}
+                  <View style={styles.formSection}>
+                    <Text style={styles.formLabel}>Start Time</Text>
+                    <View style={styles.timePickerContainer}>
+                      <View style={styles.timePickerColumn}>
+                        <Text style={styles.timePickerLabel}>Hour</Text>
+                        <View style={styles.timePickerControls}>
+                          <TouchableOpacity
+                            style={styles.timePickerButton}
+                            onPress={() => {
+                              const hour = parseInt(formStartHour) || 7;
+                              if (hour > 7) setFormStartHour(String(hour - 1));
+                            }}
+                            disabled={parseInt(formStartHour) <= 7}
+                          >
+                            <Text style={styles.timePickerButtonText}>−</Text>
+                          </TouchableOpacity>
+                          <View style={styles.timePickerValue}>
+                            <Text style={styles.timePickerValueText}>{formStartHour || '7'}</Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.timePickerButton}
+                            onPress={() => {
+                              const hour = parseInt(formStartHour) || 7;
+                              if (hour < 22) setFormStartHour(String(hour + 1));
+                            }}
+                            disabled={parseInt(formStartHour) >= 22}
+                          >
+                            <Text style={styles.timePickerButtonText}>+</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                      <View style={styles.timePickerColumn}>
+                        <Text style={styles.timePickerLabel}>Minute</Text>
+                        <View style={styles.timePickerControls}>
+                          <TouchableOpacity
+                            style={styles.timePickerButton}
+                            onPress={() => {
+                              const minute = parseInt(formStartMinute) || 0;
+                              if (minute > 0) {
+                                setFormStartMinute(String(minute - 15));
+                              } else {
+                                setFormStartMinute('45');
+                              }
+                            }}
+                          >
+                            <Text style={styles.timePickerButtonText}>−</Text>
+                          </TouchableOpacity>
+                          <View style={styles.timePickerValue}>
+                            <Text style={styles.timePickerValueText}>
+                              {String(parseInt(formStartMinute) || 0).padStart(2, '0')}
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.timePickerButton}
+                            onPress={() => {
+                              const minute = parseInt(formStartMinute) || 0;
+                              if (minute < 45) {
+                                setFormStartMinute(String(minute + 15));
+                              } else {
+                                setFormStartMinute('0');
+                              }
+                            }}
+                          >
+                            <Text style={styles.timePickerButtonText}>+</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* End Time */}
+                  <View style={styles.formSection}>
+                    <Text style={styles.formLabel}>End Time</Text>
+                    <View style={styles.timePickerContainer}>
+                      <View style={styles.timePickerColumn}>
+                        <Text style={styles.timePickerLabel}>Hour</Text>
+                        <View style={styles.timePickerControls}>
+                          <TouchableOpacity
+                            style={styles.timePickerButton}
+                            onPress={() => {
+                              const hour = parseInt(formEndHour) || 7;
+                              if (hour > 7) setFormEndHour(String(hour - 1));
+                            }}
+                            disabled={parseInt(formEndHour) <= 7}
+                          >
+                            <Text style={styles.timePickerButtonText}>−</Text>
+                          </TouchableOpacity>
+                          <View style={styles.timePickerValue}>
+                            <Text style={styles.timePickerValueText}>{formEndHour || '7'}</Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.timePickerButton}
+                            onPress={() => {
+                              const hour = parseInt(formEndHour) || 7;
+                              if (hour < 22) setFormEndHour(String(hour + 1));
+                            }}
+                            disabled={parseInt(formEndHour) >= 22}
+                          >
+                            <Text style={styles.timePickerButtonText}>+</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                      <View style={styles.timePickerColumn}>
+                        <Text style={styles.timePickerLabel}>Minute</Text>
+                        <View style={styles.timePickerControls}>
+                          <TouchableOpacity
+                            style={styles.timePickerButton}
+                            onPress={() => {
+                              const minute = parseInt(formEndMinute) || 0;
+                              if (minute > 0) {
+                                setFormEndMinute(String(minute - 15));
+                              } else {
+                                setFormEndMinute('45');
+                              }
+                            }}
+                          >
+                            <Text style={styles.timePickerButtonText}>−</Text>
+                          </TouchableOpacity>
+                          <View style={styles.timePickerValue}>
+                            <Text style={styles.timePickerValueText}>
+                              {String(parseInt(formEndMinute) || 0).padStart(2, '0')}
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.timePickerButton}
+                            onPress={() => {
+                              const minute = parseInt(formEndMinute) || 0;
+                              if (minute < 45) {
+                                setFormEndMinute(String(minute + 15));
+                              } else {
+                                setFormEndMinute('0');
+                              }
+                            }}
+                          >
+                            <Text style={styles.timePickerButtonText}>+</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Location */}
+                  <View style={styles.formSection}>
+                    <Text style={styles.formLabel}>Location</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={formLocation}
+                      onChangeText={setFormLocation}
+                      placeholder="e.g., Room 101"
+                      placeholderTextColor={colors.textSecondary}
+                    />
+                  </View>
+
+                  {/* Submit Button */}
+                  <TouchableOpacity
+                    style={styles.submitButton}
+                    onPress={() => {
+                      const startH = parseInt(formStartHour) || 9;
+                      const startM = parseInt(formStartMinute) || 0;
+                      const endH = parseInt(formEndHour) || 10;
+                      const endM = parseInt(formEndMinute) || 0;
+
+                      if (formClassName.trim() && formDays.length > 0 && startH >= 7 && startH <= 22 && endH >= 7 && endH <= 22) {
+                        // Create a schedule item for each selected day
+                        const currentTermSchedules = schedulesByTerm[selectedTerm] || [];
+                        const newItems: ScheduleItem[] = formDays.map((day, index) => ({
+                          id: `${Date.now()}-${index}`,
+                          day: day,
+                          className: formClassName.trim(),
+                          startHour: startH,
+                          startMinute: startM,
+                          endHour: endH,
+                          endMinute: endM,
+                          location: formLocation.trim(),
+                        }));
+                        
+                        // Add all items to the current term's schedule
+                        setSchedulesByTerm({
+                          ...schedulesByTerm,
+                          [selectedTerm]: [...currentTermSchedules, ...newItems],
+                        });
+                        // Reset form
+                        setFormDays([1]);
+                        setFormClassName('');
+                        setFormStartHour('9');
+                        setFormStartMinute('0');
+                        setFormEndHour('10');
+                        setFormEndMinute('0');
+                        setFormLocation('');
+                        setIsAddModalOpen(false);
+                      }
+                    }}
+                  >
+                    <Text style={styles.submitButtonText}>Add Schedule</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </View>
+            </SafeAreaView>
+          </View>
+        </Modal>
+
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -203,6 +546,62 @@ export default function ScheduleScreen() {
                 ]}
               />
             )}
+
+            {/* Schedule Blocks */}
+            {scheduleItems.map((item) => {
+              const blockStyle = getScheduleBlockStyle(item);
+              const dayIndex = DAYS.findIndex((d) => d.value === item.day);
+              const left = TIME_COLUMN_WIDTH + dayIndex * DAY_COLUMN_WIDTH;
+              
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.scheduleBlock,
+                    {
+                      left,
+                      width: DAY_COLUMN_WIDTH,
+                      top: blockStyle.top,
+                      height: blockStyle.height,
+                      backgroundColor: getColorForClassName(item.className),
+                    },
+                  ]}
+                  onLongPress={() => {
+                    Alert.alert(
+                      'Delete Schedule',
+                      `Are you sure you want to delete "${item.className}"?`,
+                      [
+                        {
+                          text: 'Cancel',
+                          style: 'cancel',
+                        },
+                        {
+                          text: 'Delete',
+                          style: 'destructive',
+                          onPress: () => {
+                            const currentTermSchedules = schedulesByTerm[selectedTerm] || [];
+                            setSchedulesByTerm({
+                              ...schedulesByTerm,
+                              [selectedTerm]: currentTermSchedules.filter((i) => i.id !== item.id),
+                            });
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.scheduleBlockTitle} numberOfLines={1}>
+                    {item.className}
+                  </Text>
+                  {item.location && (
+                    <Text style={styles.scheduleBlockLocation} numberOfLines={1}>
+                      {item.location}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
 
             {/* Time Slots Rows */}
             {timeSlots.map((hour, hourIndex) => (
@@ -361,14 +760,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 12,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e1e1e1',
   },
   headerRow: {
     flexDirection: 'row',
     height: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e1e1e1',
     backgroundColor: '#ffffff',
   },
   timeRow: {
@@ -376,8 +775,8 @@ const styles = StyleSheet.create({
     minHeight: HOUR_HEIGHT,
   },
   cell: {
-    borderRightWidth: 1,
-    borderRightColor: colors.border,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: '#e1e1e1',
   },
   timeColumnHeader: {
     width: TIME_COLUMN_WIDTH,
@@ -425,8 +824,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 1,
-    backgroundColor: colors.border,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#efefef',
   },
   currentTimeLine: {
     position: 'absolute',
@@ -435,5 +834,164 @@ const styles = StyleSheet.create({
     height: 2,
     backgroundColor: colors.error,
     zIndex: 10,
+  },
+  scheduleBlock: {
+    position: 'absolute',
+    borderRadius: 4,
+    padding: 4,
+    zIndex: 5,
+    overflow: 'hidden',
+  },
+  scheduleBlockTitle: {
+    fontSize: fontSize.xs,
+    fontWeight: '600',
+    color: '#ffffff',
+    marginBottom: 2,
+  },
+  scheduleBlockLocation: {
+    fontSize: fontSize.xs - 2,
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  addModal: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: spacing.lg,
+    maxHeight: '90%',
+  },
+  formContainer: {
+    padding: spacing.md,
+  },
+  formSection: {
+    marginBottom: spacing.md,
+  },
+  formLabel: {
+    fontSize: fontSize.md,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  dayButtons: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  dayButton: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+  },
+  dayButtonSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  dayButtonText: {
+    fontSize: fontSize.sm,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  dayButtonTextSelected: {
+    color: '#ffffff',
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    fontSize: fontSize.md,
+    color: colors.text,
+    backgroundColor: colors.background,
+  },
+  timeInputRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  timeInputContainer: {
+    flex: 1,
+  },
+  timeInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    fontSize: fontSize.md,
+    color: colors.text,
+    backgroundColor: colors.background,
+    textAlign: 'center',
+  },
+  timeInputLabel: {
+    fontSize: fontSize.xs,
+    color: colors.textLight,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+  },
+  submitButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    marginTop: spacing.md,
+  },
+  submitButtonText: {
+    fontSize: fontSize.md,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  timePickerContainer: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  timePickerColumn: {
+    flex: 1,
+  },
+  timePickerLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  timePickerControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  timePickerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: colors.backgroundSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  timePickerButtonText: {
+    fontSize: fontSize.xl,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  timePickerValue: {
+    minWidth: 60,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timePickerValueText: {
+    fontSize: fontSize.lg,
+    fontWeight: '600',
+    color: colors.text,
   },
 });
