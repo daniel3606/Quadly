@@ -2,20 +2,17 @@ const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
 
 const projectRoot = __dirname;
-const workspaceRoot = path.resolve(projectRoot, '../..');
+const monorepoRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-// Watch all files in the monorepo
-config.watchFolders = [workspaceRoot];
+// Watch the monorepo root and packages
+config.watchFolders = [monorepoRoot];
 
-// Let Metro know where to resolve packages and in what order
+// Resolve node_modules from both locations
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
-  path.resolve(workspaceRoot, 'node_modules'),
+  path.resolve(monorepoRoot, 'node_modules'),
 ];
-
-// Ensure Metro can resolve the shared package
-config.resolver.sourceExts.push('ts', 'tsx');
 
 module.exports = config;

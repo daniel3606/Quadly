@@ -2,40 +2,50 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function ClassesScreen() {
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar style="dark" />
+    <LinearGradient
+      colors={['#ffffff', '#f6f6f6']}
+      style={styles.container}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+    >
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <StatusBar style="dark" />
 
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Classes</Text>
-      </View>
-
-      <View style={styles.content}>
-        <View style={styles.placeholder}>
-          <Text style={styles.placeholderIcon}>📚</Text>
-          <Text style={styles.placeholderTitle}>Course Catalog</Text>
-          <Text style={styles.placeholderText}>
-            Search courses and read reviews from students
-          </Text>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Classes</Text>
         </View>
-      </View>
 
-      <View style={{ height: 85 }} />
-    </SafeAreaView>
+        <View style={styles.content}>
+          <View style={styles.placeholder}>
+            <Text style={styles.placeholderIcon}>📚</Text>
+            <Text style={styles.placeholderTitle}>Classes</Text>
+            <Text style={styles.placeholderText}>
+              Browse and manage your classes
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ height: 85 }} />
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fa',
+  },
+  safeArea: {
+    flex: 1,
   },
   header: {
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: 'transparent',
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },

@@ -1,46 +1,38 @@
-import { createClient } from '@supabase/supabase-js';
-import * as SecureStore from 'expo-secure-store';
+import 'react-native-url-polyfill/auto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 
-// Custom storage adapter for Expo SecureStore
-const ExpoSecureStoreAdapter = {
-  getItem: (key: string) => {
-    return SecureStore.getItemAsync(key);
-  },
-  setItem: (key: string, value: string) => {
-    SecureStore.setItemAsync(key, value);
-  },
-  removeItem: (key: string) => {
-    SecureStore.deleteItemAsync(key);
-  },
-};
+// Get Supabase credentials from Expo config
+const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl || 'https://waahgmnfykmrlxuvxerw.supabase.co';
+const supabaseAnonKey = Constants.expoConfig?.extra?.supabaseAnonKey || '';
 
-// Get Supabase URL and key from config or environment
-const getSupabaseConfig = () => {
-  const configUrl = Constants.expoConfig?.extra?.supabaseUrl;
-  const configKey = Constants.expoConfig?.extra?.supabaseAnonKey;
+console.log('Supabase URL:', supabaseUrl);
+console.log('Supabase Key exists:', !!supabaseAnonKey);
 
-  if (configUrl && configKey) {
-    return { url: configUrl, key: configKey };
-  }
+// Create a dummy client if no key is available (for testing UI without backend)
+let supabase: SupabaseClient;
 
-  // Fallback to environment variables (for development)
-  return {
-    url: process.env.EXPO_PUBLIC_SUPABASE_URL || '',
-    key: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-  };
-};
-
-const { url, key } = getSupabaseConfig();
-
-if (!url || !key) {
-  console.warn('Supabase URL and Anon Key must be configured');
+if (supabaseAnonKey) {
+  supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      storage: AsyncStorage,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  });
+} else {
+  // Create with a placeholder - auth calls will fail but app won't crash
+  console.warn('No Supabase anon key found - auth will not work');
+  supabase = createClient(supabaseUrl, 'placeholder-key', {
+    auth: {
+      storage: AsyncStorage,
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  });
 }
 
-export const supabase = createClient(url, key, {
-  auth: {
-    storage: ExpoSecureStoreAdapter,
-    autoRefreshToken: true,
-    persistSession: true,
-  },
-});
+export { supabase };

@@ -1,195 +1,143 @@
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
-import { apiClient } from '../lib/api';
+import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
-const TOKEN_KEY = 'auth_token';
-
-export interface University {
-  id: string;
-  name: string;
-  short_name: string;
-  domain: string;
-  logo_url: string;
-  color: string;
-}
-
-export interface User {
-  id: string;
-  email: string;
-  nickname: string;
-  email_verified: boolean;
-  role: string;
-  school: string;
-  graduation_year: number | null;
-  gender: string | null;
-  major: string | null;
-  onboarding_completed: boolean;
-  profile_image_url: string | null;
-}
-
 interface AuthState {
-  token: string | null;
+  session: Session | null;
   user: User | null;
   isLoading: boolean;
   isInitialized: boolean;
-  selectedUniversity: University | null;
-  universities: University[];
 
   // Actions
   initialize: () => Promise<void>;
-  setToken: (token: string) => Promise<void>;
-  setUser: (user: User) => void;
-  setSelectedUniversity: (university: University) => void;
-  fetchUniversities: () => Promise<void>;
-  fetchUser: () => Promise<void>;
-  completeOnboarding: (data: {
-    graduation_year: number;
-    gender: string;
-    major: string;
-  }) => Promise<void>;
-  logout: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUpWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signInWithGoogle: () => Promise<{ error: Error | null }>;
+  signOut: () => Promise<void>;
+  setSession: (session: Session | null) => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  token: null,
+  session: null,
   user: null,
   isLoading: true,
   isInitialized: false,
-  selectedUniversity: null,
-  universities: [],
 
   initialize: async () => {
     console.log('AuthStore: Starting initialization...');
     try {
-      // Check Supabase session first
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (session && !sessionError) {
-        console.log('AuthStore: Supabase session found');
-        const token = session.access_token;
-        await setToken(token);
-        
-        // Get user from Supabase
-        const { data: { user: supabaseUser } } = await supabase.auth.getUser();
-        
-        if (supabaseUser && supabaseUser.email?.endsWith('@umich.edu')) {
-          // Try to fetch user from backend
-          try {
-            console.log('AuthStore: Fetching user from backend...');
-            const user = await apiClient.get<User>('/auth/me');
-            console.log('AuthStore: User fetched:', user?.email);
-            set({ user });
-          } catch (e) {
-            console.log('AuthStore: Failed to fetch user from backend, using Supabase user');
-            // Fallback: create user object from Supabase user
-            set({ 
-              user: {
-                id: supabaseUser.id,
-                email: supabaseUser.email || '',
-                nickname: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || '',
-                email_verified: supabaseUser.email_confirmed_at !== null,
-                role: 'USER',
-                school: 'UMICH',
-                graduation_year: null,
-                gender: null,
-                major: null,
-                onboarding_completed: false,
-                profile_image_url: supabaseUser.user_metadata?.avatar_url || null,
-              }
-            });
-          }
-        } else if (supabaseUser) {
-          // Invalid email domain, sign out
-          await supabase.auth.signOut();
-          await logout();
-        }
-      } else {
-        // No Supabase session, check SecureStore for legacy token
-        try {
-          const token = await SecureStore.getItemAsync(TOKEN_KEY);
-          if (token) {
-            console.log('AuthStore: Legacy token found');
-            apiClient.setToken(token);
-            set({ token });
-            try {
-              const user = await apiClient.get<User>('/auth/me');
-              set({ user });
-            } catch (e) {
-              console.log('AuthStore: Legacy token invalid, clearing');
-              await SecureStore.deleteItemAsync(TOKEN_KEY);
-              apiClient.setToken(null);
-              set({ token: null, user: null });
-            }
-          }
-        } catch (e) {
-          console.log('AuthStore: SecureStore not available');
-        }
+      // Get the current session from Supabase
+      console.log('AuthStore: Getting session...');
+      const { data: { session }, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error('AuthStore: Error getting session:', error);
       }
+
+      console.log('AuthStore: Session exists:', !!session);
+
+      set({
+        session,
+        user: session?.user ?? null,
+        isLoading: false,
+        isInitialized: true,
+      });
+
+      console.log('AuthStore: Initialization complete');
+
+      // Listen for auth state changes
+      supabase.auth.onAuthStateChange((_event, session) => {
+        console.log('AuthStore: Auth state changed, session:', !!session);
+        set({
+          session,
+          user: session?.user ?? null,
+        });
+      });
     } catch (error) {
       console.error('AuthStore: Initialize error:', error);
-    } finally {
-      console.log('AuthStore: Initialization complete');
       set({ isLoading: false, isInitialized: true });
     }
   },
 
-  setToken: async (token: string) => {
-    try {
-      await SecureStore.setItemAsync(TOKEN_KEY, token);
-    } catch (e) {
-      console.log('AuthStore: SecureStore not available, token not persisted');
+  signInWithEmail: async (email: string, password: string) => {
+    set({ isLoading: true });
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      set({ isLoading: false });
+      return { error };
     }
-    apiClient.setToken(token);
-    set({ token });
+
+    set({
+      session: data.session,
+      user: data.user,
+      isLoading: false,
+    });
+
+    return { error: null };
   },
 
-  setUser: (user: User) => {
-    set({ user });
-  },
+  signUpWithEmail: async (email: string, password: string) => {
+    set({ isLoading: true });
 
-  setSelectedUniversity: (university: University) => {
-    set({ selectedUniversity: university });
-  },
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
 
-  fetchUniversities: async () => {
-    try {
-      const response = await apiClient.get<{ universities: University[] }>('/auth/universities');
-      set({ universities: response.universities });
-    } catch (error) {
-      console.error('AuthStore: Failed to fetch universities:', error);
+    if (error) {
+      set({ isLoading: false });
+      return { error };
     }
+
+    set({
+      session: data.session,
+      user: data.user,
+      isLoading: false,
+    });
+
+    return { error: null };
   },
 
-  fetchUser: async () => {
-    try {
-      const user = await apiClient.get<User>('/auth/me');
-      set({ user });
-    } catch (error) {
-      console.error('AuthStore: Failed to fetch user:', error);
-      // Don't automatically logout here - let the caller handle it
-      throw error;
+  signInWithGoogle: async () => {
+    // For mobile, we need to use a different approach
+    // Supabase OAuth on mobile requires additional setup with deep linking
+    // This is a simplified version - you may need expo-auth-session for full OAuth flow
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: 'quadly://auth/callback',
+        skipBrowserRedirect: true,
+      },
+    });
+
+    if (error) {
+      return { error };
     }
+
+    return { error: null };
   },
 
-  completeOnboarding: async (data) => {
-    const user = await apiClient.patch<User>('/auth/onboarding', data);
-    set({ user });
+  signOut: async () => {
+    set({ isLoading: true });
+
+    await supabase.auth.signOut();
+
+    set({
+      session: null,
+      user: null,
+      isLoading: false,
+    });
   },
 
-  logout: async () => {
-    try {
-      // Sign out from Supabase
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.log('AuthStore: Supabase sign out error:', e);
-    }
-    try {
-      await SecureStore.deleteItemAsync(TOKEN_KEY);
-    } catch (e) {
-      console.log('AuthStore: SecureStore not available');
-    }
-    apiClient.setToken(null);
-    set({ token: null, user: null });
+  setSession: (session: Session | null) => {
+    set({
+      session,
+      user: session?.user ?? null,
+    });
   },
 }));
