@@ -10,6 +10,8 @@ import {
   FlatList,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -256,7 +258,11 @@ export default function ScheduleScreen() {
           animationType="slide"
           onRequestClose={() => setIsAddModalOpen(false)}
         >
-          <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            style={styles.modalOverlay}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          >
             <TouchableOpacity
               style={StyleSheet.absoluteFill}
               activeOpacity={1}
@@ -270,7 +276,11 @@ export default function ScheduleScreen() {
                     <Text style={styles.modalCloseButton}>Cancel</Text>
                   </TouchableOpacity>
                 </View>
-                <ScrollView style={styles.formContainer}>
+                <ScrollView
+                  style={styles.formContainer}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={styles.formContentContainer}
+                >
                   {/* Day Selection */}
                   <View style={styles.formSection}>
                     <Text style={styles.formLabel}>Days (select multiple)</Text>
@@ -504,7 +514,7 @@ export default function ScheduleScreen() {
                 </ScrollView>
               </View>
             </SafeAreaView>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         <ScrollView
@@ -846,7 +856,11 @@ const styles = StyleSheet.create({
     maxHeight: '90%',
   },
   formContainer: {
+    flex: 1,
+  },
+  formContentContainer: {
     padding: spacing.md,
+    paddingBottom: spacing.xl,
   },
   formSection: {
     marginBottom: spacing.md,

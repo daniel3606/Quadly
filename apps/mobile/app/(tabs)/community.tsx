@@ -1,10 +1,23 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, StyleSheet, Text, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useCommunityStore } from '../../src/store/communityStore';
+import { BoardSelector } from '../../src/components/community';
+import { colors, spacing, fontSize } from '../../src/constants';
 
 export default function CommunityScreen() {
+  const router = useRouter();
+  const { initialize, isInitialized } = useCommunityStore();
+
+  useEffect(() => {
+    if (!isInitialized) {
+      initialize();
+    }
+  }, [isInitialized]);
+
   return (
     <LinearGradient
       colors={['#ffffff', '#f6f6f6']}
@@ -19,15 +32,15 @@ export default function CommunityScreen() {
           <Text style={styles.headerTitle}>Community</Text>
         </View>
 
-        <View style={styles.content}>
-          <View style={styles.placeholder}>
-            <Text style={styles.placeholderIcon}>💬</Text>
-            <Text style={styles.placeholderTitle}>Community</Text>
-            <Text style={styles.placeholderText}>
-              Connect with your campus community
-            </Text>
-          </View>
-        </View>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+      
+            <BoardSelector />
+    
+        </ScrollView>
 
         <View style={{ height: 85 }} />
       </SafeAreaView>
@@ -43,39 +56,32 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
     backgroundColor: 'transparent',
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.border,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: fontSize.xxl,
     fontWeight: 'bold',
-    color: '#00274C',
+    color: colors.primary,
   },
-  content: {
+  scrollView: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
   },
-  placeholder: {
-    alignItems: 'center',
+  scrollContent: {
+    paddingBottom: 100,
   },
-  placeholderIcon: {
-    fontSize: 64,
-    marginBottom: 16,
+  boardsSection: {
+    backgroundColor: colors.background,
   },
-  placeholderTitle: {
-    fontSize: 20,
+  sectionTitle: {
+    fontSize: fontSize.lg,
     fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 8,
-  },
-  placeholderText: {
-    fontSize: 14,
-    color: '#666666',
-    textAlign: 'center',
+    color: colors.text,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.background,
   },
 });

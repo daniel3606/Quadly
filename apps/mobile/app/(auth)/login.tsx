@@ -12,7 +12,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { useAuthStore } from '../../src/store/authStore';
@@ -22,6 +22,7 @@ import { supabase } from '../../src/lib/supabase';
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
+  const router = useRouter();
   const { signInWithEmail, isLoading } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,8 +45,8 @@ export default function LoginScreen() {
     setIsGoogleLoading(true);
 
     try {
-      // Create redirect URL for the mobile app
-      const redirectUrl = Linking.createURL('auth/callback');
+      // Create redirect URL for the mobile app using the proper deep link format
+      const redirectUrl = Linking.createURL('/(auth)/callback');
 
       // Get the OAuth URL from Supabase
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -68,23 +69,23 @@ export default function LoginScreen() {
         );
 
         if (result.type === 'success' && result.url) {
-          // Extract the tokens from the callback URL
-          const url = new URL(result.url);
-          const params = new URLSearchParams(url.hash.substring(1));
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-
-          if (accessToken && refreshToken) {
-            // Set the session in Supabase
-            await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-          }
+          // The callback route will handle the token extraction and session setup
+          // Navigate to the callback route with the URL
+          router.push({
+            pathname: '/(auth)/callback',
+            params: { url: result.url },
+          });
+        } else if (result.type === 'cancel') {
+          Alert.alert('Sign In Cancelled', 'Google sign in was cancelled.');
+        } else {
+          Alert.alert('Sign In Failed', 'Unable to complete Google sign in.');
         }
+      } else {
+        throw new Error('No OAuth URL returned from Supabase');
       }
     } catch (error: any) {
-      Alert.alert('Google Sign In Failed', error.message);
+      console.error('Google Sign In Error:', error);
+      Alert.alert('Google Sign In Failed', error.message || 'An error occurred during sign in');
     } finally {
       setIsGoogleLoading(false);
     }

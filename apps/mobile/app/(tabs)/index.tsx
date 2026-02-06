@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -14,12 +13,21 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '../../src/store/authStore';
 import { useScheduleStore, ScheduleItem } from '../../src/store/scheduleStore';
-import { colors, fontSize, spacing } from '../../src/constants/colors';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const TIME_COLUMN_WIDTH = 25;
-const DAY_COLUMN_WIDTH = Math.floor((SCREEN_WIDTH - TIME_COLUMN_WIDTH - 40 - 40) / 5);
-const HOUR_HEIGHT = 70;
+import { useCommunityStore, Post } from '../../src/store/communityStore';
+import { colors, fontSize, spacing, borderRadius, cardShadow } from '../../src/constants/colors';
+import { supabase } from '../../src/lib/supabase';
+// Hot score calculation function
+const calculateHotScore = (
+  likeCount: number,
+  commentCount: number,
+  viewCount: number,
+  createdAt: Date
+): number => {
+  const baseScore = likeCount * 2 + commentCount * 3 + Math.log(viewCount + 1);
+  const hoursSincePost = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60);
+  const timeDecay = 1 / Math.pow(hoursSincePost + 2, 1.3);
+  return baseScore * timeDecay;
+};
 
 const DAYS = [
   { label: 'Mon', value: 1 },
@@ -50,11 +58,71 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
   const { selectedTerm, schedulesByTerm } = useScheduleStore();
+  const { boardsWithLatestPost, savedBoardIds, initialize, isInitialized } = useCommunityStore();
+  
+  const [hotPosts, setHotPosts] = useState<Post[]>([]);
+  const [isLoadingHotPosts, setIsLoadingHotPosts] = useState(false);
 
   const userEmail = user?.email ?? 'user@example.com';
   const userInitial = userEmail.charAt(0).toUpperCase();
 
   const scheduleItems = schedulesByTerm[selectedTerm] || [];
+
+  // Get saved boards with latest posts
+  const savedBoards = boardsWithLatestPost.filter((board) => savedBoardIds.has(board.id));
+
+  // Initialize community store if needed
+  useEffect(() => {
+    if (!isInitialized) {
+      initialize();
+    }
+  }, [isInitialized]);
+
+  // Fetch hot posts today
+  useEffect(() => {
+    fetchHotPosts();
+  }, []);
+
+  const fetchHotPosts = async () => {
+    setIsLoadingHotPosts(true);
+    try {
+      // Get posts from today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
+
+      const { data: postsData, error } = await supabase
+        .from('posts')
+        .select('*')
+        .gte('created_at', todayISO)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      // Calculate hot scores and sort
+      const postsWithScores = (postsData || []).map((post) => ({
+        ...post,
+        hotScore: calculateHotScore(
+          post.like_count,
+          post.comment_count,
+          post.view_count,
+          new Date(post.created_at)
+        ),
+      }));
+
+      // Sort by hot score and take top 5
+      const sortedPosts = postsWithScores
+        .sort((a, b) => b.hotScore - a.hotScore)
+        .slice(0, 5);
+
+      setHotPosts(sortedPosts);
+    } catch (error) {
+      console.error('Failed to fetch hot posts:', error);
+    } finally {
+      setIsLoadingHotPosts(false);
+    }
+  };
 
   // Calculate time window: 1.5 hours before and after current time
   const getTimeWindow = () => {
@@ -63,7 +131,6 @@ export default function HomeScreen() {
     const currentMinute = now.getMinutes();
     const currentTimeInMinutes = currentHour * 60 + currentMinute;
 
-    // If current time is before 7am or after 10pm, show from 7am
     if (currentHour < 7 || currentHour > 22) {
       return {
         startHour: 7,
@@ -73,11 +140,9 @@ export default function HomeScreen() {
       };
     }
 
-    // Calculate 1.5 hours before and after (90 minutes)
     let windowStartMinutes = currentTimeInMinutes - 90;
     let windowEndMinutes = currentTimeInMinutes + 90;
 
-    // Ensure we stay within 7am-10pm bounds
     if (windowStartMinutes < 7 * 60) {
       windowStartMinutes = 7 * 60;
     }
@@ -87,8 +152,6 @@ export default function HomeScreen() {
 
     const startHour = Math.floor(windowStartMinutes / 60);
     const endHour = Math.ceil(windowEndMinutes / 60);
-
-    // Current time position relative to window start (should be ~middle)
     const currentTimePosition = currentTimeInMinutes - windowStartMinutes;
 
     return {
@@ -100,8 +163,10 @@ export default function HomeScreen() {
   };
 
   const timeWindow = getTimeWindow();
+  const TIME_COLUMN_WIDTH = 25;
+  const DAY_COLUMN_WIDTH = Math.floor((340 - TIME_COLUMN_WIDTH - 40) / 5);
+  const HOUR_HEIGHT = 70;
 
-  // Generate time slots for the window (show 3 hours)
   const generateTimeSlots = () => {
     const slots = [];
     for (let hour = timeWindow.startHour; hour <= timeWindow.startHour + 2; hour++) {
@@ -113,13 +178,10 @@ export default function HomeScreen() {
   };
 
   const timeSlots = generateTimeSlots();
-
-  // Filter schedule items to only show those within the time window
   const windowEndMinutes = (timeWindow.startHour + 3) * 60;
   const visibleScheduleItems = scheduleItems.filter((item) => {
     const itemStartMinutes = item.startHour * 60 + item.startMinute;
     const itemEndMinutes = item.endHour * 60 + item.endMinute;
-
     return itemStartMinutes < windowEndMinutes && itemEndMinutes > timeWindow.windowStartMinutes;
   });
 
@@ -135,30 +197,38 @@ export default function HomeScreen() {
   const getScheduleBlockStyle = (item: ScheduleItem) => {
     const startMinutes = item.startHour * 60 + item.startMinute;
     const endMinutes = item.endHour * 60 + item.endMinute;
-
-    // Clip to window boundaries
     const clippedStartMinutes = Math.max(startMinutes, timeWindow.windowStartMinutes);
     const clippedEndMinutes = Math.min(endMinutes, windowEndMinutes);
-
     const startFromWindowStart = clippedStartMinutes - timeWindow.windowStartMinutes;
     const top = (startFromWindowStart / 60) * HOUR_HEIGHT;
-
     const durationMinutes = clippedEndMinutes - clippedStartMinutes;
     const height = (durationMinutes / 60) * HOUR_HEIGHT;
-
     return {
       top,
       height: Math.max(height, 20),
     };
   };
 
-  // Current time line position (should be in middle when time is in range)
   const getCurrentTimePosition = () => {
     if (timeWindow.currentTimePosition === null) return null;
     return (timeWindow.currentTimePosition / 60) * HOUR_HEIGHT;
   };
 
   const currentTimeY = getCurrentTimePosition();
+
+  const handleBoardPress = (boardId: string) => {
+    router.push({
+      pathname: '/board/[id]',
+      params: { id: boardId },
+    });
+  };
+
+  const handlePostPress = (postId: string) => {
+    router.push({
+      pathname: '/post/[id]',
+      params: { id: postId },
+    });
+  };
 
   return (
     <LinearGradient
@@ -217,7 +287,6 @@ export default function HomeScreen() {
               onPress={() => router.push('/(tabs)/schedule')}
               activeOpacity={0.9}
             >
-              {/* Current Time Indicator Line */}
               {currentTimeY !== null && (
                 <View
                   style={[
@@ -227,7 +296,6 @@ export default function HomeScreen() {
                 />
               )}
 
-              {/* Schedule Blocks */}
               {visibleScheduleItems.map((item) => {
                 const blockStyle = getScheduleBlockStyle(item);
                 const dayIndex = DAYS.findIndex((d) => d.value === item.day);
@@ -259,7 +327,6 @@ export default function HomeScreen() {
                 );
               })}
 
-              {/* Time Slots Rows */}
               {timeSlots.map((hour, hourIndex) => (
                 <View key={hour} style={styles.scheduleTimeRow}>
                   <View style={[styles.scheduleTimeCell, styles.scheduleCell]}>
@@ -281,37 +348,108 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Quick Actions */}
+          {/* Saved Boards */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
-            <View style={styles.quickActions}>
-              <TouchableOpacity
-                style={styles.actionCard}
-                onPress={() => router.push('/(tabs)/schedule')}
-              >
-                <Text style={styles.actionIcon}>📅</Text>
-                <Text style={styles.actionTitle}>Schedule</Text>
-                <Text style={styles.actionSubtitle}>View your classes</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.actionCard}
-                onPress={() => router.push('/(tabs)/settings')}
-              >
-                <Text style={styles.actionIcon}>⚙️</Text>
-                <Text style={styles.actionTitle}>Settings</Text>
-                <Text style={styles.actionSubtitle}>Manage account</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Saved Boards</Text>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/community')}>
+                <Text style={styles.viewAllText}>View All</Text>
               </TouchableOpacity>
             </View>
+            {savedBoards.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>No saved boards yet</Text>
+                <Text style={styles.emptySubtext}>
+                  Save boards to see them here
+                </Text>
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.boardsScrollContent}
+              >
+                {savedBoards.slice(0, 5).map((board) => (
+                  <TouchableOpacity
+                    key={board.id}
+                    style={styles.boardCard}
+                    onPress={() => handleBoardPress(board.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.boardName} numberOfLines={2}>
+                      {board.name}
+                    </Text>
+                    {board.latestPost && (
+                      <View style={styles.latestPostContainer}>
+                        {!board.latestPost.isRead && (
+                          <View style={styles.unreadDot} />
+                        )}
+                        <Text style={styles.latestPostTitle} numberOfLines={1}>
+                          {board.latestPost.title}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
           </View>
 
-          {/* Info Card */}
-          <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>Getting Started</Text>
-            <Text style={styles.infoText}>
-              This is your home screen. Navigate using the tabs below to explore
-              the app features.
-            </Text>
+          {/* Hot Posts Today */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Hot Posts Today</Text>
+            </View>
+            {isLoadingHotPosts ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>Loading...</Text>
+              </View>
+            ) : hotPosts.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>No hot posts today</Text>
+                <Text style={styles.emptySubtext}>
+                  Check back later for trending posts
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.postsContainer}>
+                {hotPosts.map((post) => (
+                  <TouchableOpacity
+                    key={post.id}
+                    style={styles.postCard}
+                    onPress={() => handlePostPress(post.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.postTitle} numberOfLines={2}>
+                      {post.title}
+                    </Text>
+                    <View style={styles.postStats}>
+                      <View style={styles.postStatItem}>
+                        <Image
+                          source={require('../../assets/view_icon.png')}
+                          style={styles.postStatIcon}
+                        />
+                        <Text style={styles.postStatText}>{post.view_count}</Text>
+                      </View>
+                      <View style={styles.postStatItem}>
+                        <Image
+                          source={require('../../assets/like_icon.png')}
+                          style={styles.postStatIcon}
+                        />
+                        <Text style={styles.postStatText}>{post.like_count}</Text>
+                      </View>
+                      <View style={styles.postStatItem}>
+                        <Image
+                          source={require('../../assets/comment_icon.png')}
+                          style={styles.postStatIcon}
+                        />
+                        <Text style={styles.postStatText}>{post.comment_count}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
 
           {/* Bottom padding for tab bar */}
@@ -406,63 +544,21 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 24,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1a1a1a',
-    marginBottom: 12,
   },
-  quickActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionCard: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  actionIcon: {
-    fontSize: 28,
-    marginBottom: 8,
-  },
-  actionTitle: {
+  viewAllText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 2,
-  },
-  actionSubtitle: {
-    fontSize: 11,
-    color: '#666666',
-    textAlign: 'center',
-  },
-  infoCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#666666',
-    lineHeight: 20,
+    color: colors.link,
+    fontWeight: '500',
   },
   // Schedule Preview Styles
   scheduleGridContainer: {
@@ -471,20 +567,20 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#e1e1e1',
-    height: HOUR_HEIGHT * 3, // 3 hours
+    height: 210,
     position: 'relative',
   },
   scheduleTimeRow: {
     flexDirection: 'row',
-    minHeight: HOUR_HEIGHT,
+    minHeight: 70,
   },
   scheduleCell: {
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: '#e1e1e1',
   },
   scheduleTimeCell: {
-    width: TIME_COLUMN_WIDTH,
-    minHeight: HOUR_HEIGHT,
+    width: 25,
+    minHeight: 70,
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
     paddingRight: 4,
@@ -496,8 +592,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   scheduleDayCell: {
-    width: DAY_COLUMN_WIDTH,
-    minHeight: HOUR_HEIGHT,
+    width: Math.floor((340 - 25 - 40) / 5),
+    minHeight: 70,
     position: 'relative',
   },
   scheduleGridLineBottom: {
@@ -510,7 +606,7 @@ const styles = StyleSheet.create({
   },
   scheduleCurrentTimeLine: {
     position: 'absolute',
-    left: TIME_COLUMN_WIDTH,
+    left: 25,
     right: 0,
     height: 2,
     backgroundColor: colors.error,
@@ -532,5 +628,93 @@ const styles = StyleSheet.create({
   scheduleBlockLocation: {
     fontSize: fontSize.xs - 2,
     color: 'rgba(255, 255, 255, 0.9)',
+  },
+  // Saved Boards Styles
+  boardsScrollContent: {
+    gap: 12,
+    paddingRight: 20,
+  },
+  boardCard: {
+    width: 140,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    ...cardShadow,
+  },
+  boardName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 4,
+  },
+  latestPostContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  unreadDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.error,
+    marginRight: 6,
+  },
+  latestPostTitle: {
+    flex: 1,
+    fontSize: 11,
+    color: '#666666',
+    lineHeight: 14,
+  },
+  // Hot Posts Styles
+  postsContainer: {
+    gap: 12,
+  },
+  postCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    ...cardShadow,
+  },
+  postTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  postStats: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  postStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  postStatIcon: {
+    width: 14,
+    height: 14,
+    tintColor: '#666666',
+  },
+  postStatText: {
+    fontSize: 12,
+    color: '#666666',
+  },
+  emptyCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    ...cardShadow,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#666666',
+    marginBottom: 4,
+  },
+  emptySubtext: {
+    fontSize: 12,
+    color: '#999999',
+    textAlign: 'center',
   },
 });
