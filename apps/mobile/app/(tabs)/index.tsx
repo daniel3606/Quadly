@@ -265,8 +265,19 @@ export default function HomeScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={() => router.push('/settings')}
+            >
+              <Image
+                source={require('../../assets/settings_icon.png')}
+                style={styles.settingsIcon}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={styles.profileButton}
-              onPress={() => router.push('/(tabs)/settings')}
+              onPress={() => router.push('/settings')}
             >
               <Text style={styles.profileInitial}>{userInitial}</Text>
             </TouchableOpacity>
@@ -521,6 +532,17 @@ const styles = StyleSheet.create({
   notificationIcon: {
     width: 24,
     height: 24,
+  },
+  settingsButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsIcon: {
+    width: 22,
+    height: 22,
+    tintColor: '#00274C',
   },
   profileButton: {
     width: 36,

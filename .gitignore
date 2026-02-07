@@ -12,6 +12,7 @@ dist/
 .next/
 out/
 .expo/
+.mcp.json
 
 # Misc
 .DS_Store

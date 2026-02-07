@@ -10,9 +10,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuthStore } from '../../src/store/authStore';
+import { useRouter } from 'expo-router';
+import { useAuthStore } from '../src/store/authStore';
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { user, signOut } = useAuthStore();
 
   const userEmail = user?.email ?? 'user@example.com';
@@ -64,7 +66,14 @@ export default function SettingsScreen() {
 
         {/* Header */}
         <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.backButtonText}>←</Text>
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>Settings</Text>
+          <View style={styles.placeholder} />
         </View>
 
         <ScrollView
@@ -72,50 +81,49 @@ export default function SettingsScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.contentContainer}
         >
-        {/* Profile Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.profileAvatar}>
-            <Text style={styles.profileAvatarText}>{userInitial}</Text>
-          </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileEmail}>{userEmail}</Text>
-          </View>
-        </View>
-
-        {/* Settings Groups */}
-        {settingsGroups.map((group, groupIndex) => (
-          <View key={groupIndex} style={styles.settingsGroup}>
-            <Text style={styles.groupTitle}>{group.title}</Text>
-            <View style={styles.groupContent}>
-              {group.items.map((item, itemIndex) => (
-                <TouchableOpacity
-                  key={itemIndex}
-                  style={[
-                    styles.settingsItem,
-                    itemIndex < group.items.length - 1 && styles.settingsItemBorder,
-                  ]}
-                  onPress={item.onPress}
-                  activeOpacity={0.6}
-                >
-                  <Text style={styles.settingsIcon}>{item.icon}</Text>
-                  <Text style={styles.settingsLabel}>{item.label}</Text>
-                  <Text style={styles.settingsArrow}>›</Text>
-                </TouchableOpacity>
-              ))}
+          {/* Profile Card */}
+          <View style={styles.profileCard}>
+            <View style={styles.profileAvatar}>
+              <Text style={styles.profileAvatarText}>{userInitial}</Text>
+            </View>
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileEmail}>{userEmail}</Text>
             </View>
           </View>
-        ))}
 
-        {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+          {/* Settings Groups */}
+          {settingsGroups.map((group, groupIndex) => (
+            <View key={groupIndex} style={styles.settingsGroup}>
+              <Text style={styles.groupTitle}>{group.title}</Text>
+              <View style={styles.groupContent}>
+                {group.items.map((item, itemIndex) => (
+                  <TouchableOpacity
+                    key={itemIndex}
+                    style={[
+                      styles.settingsItem,
+                      itemIndex < group.items.length - 1 && styles.settingsItemBorder,
+                    ]}
+                    onPress={item.onPress}
+                    activeOpacity={0.6}
+                  >
+                    <Text style={styles.settingsIcon}>{item.icon}</Text>
+                    <Text style={styles.settingsLabel}>{item.label}</Text>
+                    <Text style={styles.settingsArrow}>›</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ))}
 
-        {/* App Version */}
-        <Text style={styles.versionText}>Quadly v0.1.0</Text>
+          {/* Logout Button */}
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
 
-        {/* Bottom padding for tab bar */}
-        <View style={{ height: 100 }} />
+          {/* App Version */}
+          <Text style={styles.versionText}>Quadly v0.1.0</Text>
+
+          <View style={{ height: 40 }} />
         </ScrollView>
       </SafeAreaView>
     </LinearGradient>
@@ -130,16 +138,33 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: 'transparent',
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
+  backButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  backButtonText: {
+    fontSize: 24,
+    color: '#00274C',
+  },
   headerTitle: {
+    flex: 1,
     fontSize: 24,
     fontWeight: 'bold',
     color: '#00274C',
+  },
+  placeholder: {
+    width: 36,
   },
   content: {
     flex: 1,

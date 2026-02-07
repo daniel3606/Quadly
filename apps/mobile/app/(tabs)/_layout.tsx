@@ -71,12 +71,12 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="settings"
+        name="marketplace"
         options={{
-          title: 'Settings',
+          title: 'Market',
           tabBarIcon: ({ focused }) => (
             <TabIcon
-              source={require('../../assets/settings_icon.png')}
+              source={require('../../assets/marketplace_icon.png')}
               focused={focused}
             />
           ),
