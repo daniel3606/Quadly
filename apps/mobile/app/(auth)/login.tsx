@@ -1,87 +1,149 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Link, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
-import { useAuthStore } from '../../src/store/authStore';
+import * as QueryParams from 'expo-auth-session/build/QueryParams';
+import { makeRedirectUri } from 'expo-auth-session';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../src/lib/supabase';
+import { useAuthStore } from '../../src/store/authStore';
 
-// Ensure WebBrowser auth session completes properly
 WebBrowser.maybeCompleteAuthSession();
 
+// Supabase cloud does not support non-HTTPS redirect URLs (exp://, quadly://).
+// Workaround: redirect to an HTTPS page on quadly.org that then redirects
+// to the mobile app's deep link. ASWebAuthenticationSession intercepts
+// the custom-scheme redirect before the browser navigates.
+const nativeRedirect = makeRedirectUri(); // e.g. exp://10.0.0.128:8081 or quadly://
+const schemeEnd = nativeRedirect.indexOf('://');
+const mobileScheme = nativeRedirect.substring(0, schemeEnd); // 'exp' or 'quadly'
+const mobileHost = nativeRedirect.substring(schemeEnd + 3); // '10.0.0.128:8081' or ''
+
+// Tell Supabase to redirect to our HTTPS callback page, passing the mobile scheme info
+const redirectTo = `https://quadly.org/auth/mobile-callback?mobile_scheme=${encodeURIComponent(mobileScheme)}&mobile_host=${encodeURIComponent(mobileHost)}`;
+console.log('[Auth] Native redirect:', nativeRedirect);
+console.log('[Auth] Supabase redirectTo:', redirectTo);
+
+interface University {
+  id: string;
+  name: string;
+  short_name: string | null;
+  domain: string;
+}
+
+const SELECTED_UNIVERSITY_KEY = 'quadly_selected_university';
+
+const createSessionFromUrl = async (url: string) => {
+  const { params, errorCode } = QueryParams.getQueryParams(url);
+
+  if (errorCode) {
+    console.error('[Auth] OAuth error code:', errorCode);
+    throw new Error(errorCode);
+  }
+
+  const { access_token, refresh_token } = params;
+  console.log('[Auth] Tokens in URL:', { hasAccessToken: !!access_token, hasRefreshToken: !!refresh_token });
+
+  if (!access_token) return null;
+
+  const { data, error } = await supabase.auth.setSession({
+    access_token,
+    refresh_token,
+  });
+
+  if (error) {
+    console.error('[Auth] setSession error:', error.message);
+    throw error;
+  }
+
+  console.log('[Auth] Session established:', !!data.session);
+  return data.session;
+};
+
 export default function LoginScreen() {
-  const router = useRouter();
-  const { signInWithEmail, isLoading } = useAuthStore();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [universities, setUniversities] = useState<University[]>([]);
+  const [selectedUniversity, setSelectedUniversity] = useState<University | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+  const setSession = useAuthStore(s => s.setSession);
 
-  const handleEmailLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter both email and password.');
-      return;
-    }
+  useEffect(() => {
+    fetchUniversities();
+  }, []);
 
-    const { error } = await signInWithEmail(email.trim(), password);
+  const fetchUniversities = async () => {
+    const { data, error } = await supabase
+      .from('universities')
+      .select('id, name, short_name, domain')
+      .eq('enabled', true)
+      .order('name');
 
-    if (error) {
-      Alert.alert('Login Failed', error.message);
+    if (data && !error) {
+      setUniversities(data);
+      try {
+        const savedId = await AsyncStorage.getItem(SELECTED_UNIVERSITY_KEY);
+        if (savedId) {
+          const saved = data.find((u: University) => u.id === savedId);
+          if (saved) setSelectedUniversity(saved);
+        }
+      } catch {}
     }
   };
 
+  const handleSelectUniversity = async (university: University) => {
+    setSelectedUniversity(university);
+    setShowPicker(false);
+    try {
+      await AsyncStorage.setItem(SELECTED_UNIVERSITY_KEY, university.id);
+    } catch {}
+  };
+
   const handleGoogleLogin = async () => {
+    if (!selectedUniversity) {
+      Alert.alert('Select School', 'Please select your university first.');
+      return;
+    }
+
+    if (isGoogleLoading) return;
     setIsGoogleLoading(true);
 
     try {
-      // Create redirect URL for the mobile app using the proper deep link format
-      const redirectUrl = Linking.createURL('/(auth)/callback');
-
-      // Get the OAuth URL from Supabase
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: redirectUrl,
+          redirectTo,
           skipBrowserRedirect: true,
         },
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
+      if (!data?.url) throw new Error('No OAuth URL returned from Supabase');
 
-      if (data?.url) {
-        // Open the OAuth URL in a browser
-        const result = await WebBrowser.openAuthSessionAsync(
-          data.url,
-          redirectUrl
-        );
+      console.log('[Auth] OAuth URL:', data.url);
+      console.log('[Auth] Opening browser, listening for scheme:', nativeRedirect);
 
-        if (result.type === 'success' && result.url) {
-          // The callback route will handle the token extraction and session setup
-          // Navigate to the callback route with the URL
-          router.push({
-            pathname: '/(auth)/callback',
-            params: { url: result.url },
-          });
-        } else if (result.type === 'cancel') {
-          Alert.alert('Sign In Cancelled', 'Google sign in was cancelled.');
-        } else {
-          Alert.alert('Sign In Failed', 'Unable to complete Google sign in.');
+      // Listen for the NATIVE scheme (exp:// or quadly://), not the HTTPS redirect.
+      // The web page at quadly.org/auth/mobile-callback will redirect to this scheme.
+      const res = await WebBrowser.openAuthSessionAsync(data.url, nativeRedirect);
+
+      console.log('[Auth] Browser result:', res.type);
+
+      if (res.type === 'success' && res.url) {
+        console.log('[Auth] Callback URL:', res.url);
+        const session = await createSessionFromUrl(res.url);
+        if (session) {
+          setSession(session);
         }
-      } else {
-        throw new Error('No OAuth URL returned from Supabase');
       }
     } catch (error: any) {
       console.error('Google Sign In Error:', error);
@@ -92,77 +154,42 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <View style={styles.container}>
       <StatusBar style="dark" />
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Logo */}
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.logoSection}>
           <View style={styles.logo}>
             <Text style={styles.logoText}>Q</Text>
           </View>
           <Text style={styles.title}>Quadly</Text>
-          <Text style={styles.subtitle}>Welcome back</Text>
+          <Text style={styles.subtitle}>Sign in with your school email</Text>
         </View>
 
-        {/* Login Form */}
-        <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="you@example.com"
-              placeholderTextColor="#999"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your password"
-              placeholderTextColor="#999"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
-
+        <View style={styles.selectorContainer}>
+          <Text style={styles.label}>Your School</Text>
           <TouchableOpacity
-            style={[styles.loginButton, isLoading && styles.buttonDisabled]}
-            onPress={handleEmailLogin}
-            disabled={isLoading}
+            style={[styles.schoolSelector, selectedUniversity && styles.schoolSelectorSelected]}
+            onPress={() => setShowPicker(true)}
           >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.loginButtonText}>Log In</Text>
-            )}
+            <Text
+              style={[
+                styles.schoolSelectorText,
+                !selectedUniversity && styles.schoolSelectorPlaceholder,
+              ]}
+            >
+              {selectedUniversity ? selectedUniversity.name : 'Select your university'}
+            </Text>
+            <Text style={styles.chevron}>&#x25BC;</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Divider */}
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        {/* Google Sign In */}
         <TouchableOpacity
-          style={[styles.googleButton, isGoogleLoading && styles.buttonDisabled]}
+          style={[
+            styles.googleButton,
+            (isGoogleLoading || !selectedUniversity) && styles.buttonDisabled,
+          ]}
           onPress={handleGoogleLogin}
-          disabled={isGoogleLoading}
+          disabled={isGoogleLoading || !selectedUniversity}
         >
           {isGoogleLoading ? (
             <ActivityIndicator color="#333" />
@@ -176,17 +203,69 @@ export default function LoginScreen() {
           )}
         </TouchableOpacity>
 
-        {/* Sign Up Link */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
-          <Link href="/(auth)/signup" asChild>
-            <TouchableOpacity>
-              <Text style={styles.footerLink}>Sign Up</Text>
-            </TouchableOpacity>
-          </Link>
-        </View>
+        {selectedUniversity && (
+          <Text style={styles.domainNote}>
+            Use your @{selectedUniversity.domain} email to sign in
+          </Text>
+        )}
       </ScrollView>
-    </KeyboardAvoidingView>
+
+      <Modal
+        visible={showPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowPicker(false)}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Your School</Text>
+              <TouchableOpacity onPress={() => setShowPicker(false)}>
+                <Text style={styles.modalClose}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={universities}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.universityItem,
+                    selectedUniversity?.id === item.id && styles.universityItemSelected,
+                  ]}
+                  onPress={() => handleSelectUniversity(item)}
+                >
+                  <View>
+                    <Text
+                      style={[
+                        styles.universityName,
+                        selectedUniversity?.id === item.id && styles.universityNameSelected,
+                      ]}
+                    >
+                      {item.name}
+                    </Text>
+                    <Text style={styles.universityDomain}>@{item.domain}</Text>
+                  </View>
+                  {selectedUniversity?.id === item.id && (
+                    <Text style={styles.checkmark}>&#x2713;</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <View style={styles.emptyList}>
+                  <ActivityIndicator color="#00274C" />
+                  <Text style={styles.emptyText}>Loading schools...</Text>
+                </View>
+              }
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
   );
 }
 
@@ -198,12 +277,13 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 80,
+    paddingTop: 100,
     paddingBottom: 40,
+    justifyContent: 'center',
   },
   logoSection: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 48,
   },
   logo: {
     width: 80,
@@ -234,11 +314,8 @@ const styles = StyleSheet.create({
     color: '#666666',
     marginTop: 4,
   },
-  form: {
+  selectorContainer: {
     marginBottom: 24,
-  },
-  inputContainer: {
-    marginBottom: 16,
   },
   label: {
     fontSize: 14,
@@ -246,45 +323,33 @@ const styles = StyleSheet.create({
     color: '#333333',
     marginBottom: 8,
   },
-  input: {
+  schoolSelector: {
     backgroundColor: '#f5f5f5',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 16,
-    color: '#1a1a1a',
     borderWidth: 1,
     borderColor: '#e0e0e0',
-  },
-  loginButton: {
-    backgroundColor: '#00274C',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  loginButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    justifyContent: 'space-between',
   },
-  dividerLine: {
+  schoolSelectorSelected: {
+    borderColor: '#00274C',
+    backgroundColor: '#f8faff',
+  },
+  schoolSelectorText: {
+    fontSize: 16,
+    color: '#1a1a1a',
     flex: 1,
-    height: 1,
-    backgroundColor: '#e0e0e0',
   },
-  dividerText: {
-    paddingHorizontal: 16,
-    color: '#999999',
-    fontSize: 14,
+  schoolSelectorPlaceholder: {
+    color: '#999',
+  },
+  chevron: {
+    fontSize: 10,
+    color: '#999',
+    marginLeft: 8,
   },
   googleButton: {
     flexDirection: 'row',
@@ -296,7 +361,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 24,
-    marginBottom: 24,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   googleIcon: {
     width: 24,
@@ -317,18 +384,81 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#1a1a1a',
   },
-  footer: {
+  domainNote: {
+    fontSize: 13,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '50%',
+    paddingBottom: 40,
+  },
+  modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-  footerText: {
-    fontSize: 14,
-    color: '#666666',
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1a1a1a',
   },
-  footerLink: {
-    fontSize: 14,
+  modalClose: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#00274C',
+  },
+  universityItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  universityItemSelected: {
+    backgroundColor: '#f0f4ff',
+  },
+  universityName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1a1a1a',
+  },
+  universityNameSelected: {
     color: '#00274C',
     fontWeight: '600',
+  },
+  universityDomain: {
+    fontSize: 13,
+    color: '#999',
+    marginTop: 2,
+  },
+  checkmark: {
+    fontSize: 18,
+    color: '#00274C',
+    fontWeight: 'bold',
+  },
+  emptyList: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
   },
 });
