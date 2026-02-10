@@ -22,7 +22,7 @@ interface ScheduleState {
 
 export const useScheduleStore = create<ScheduleState>((set, get) => ({
   schedulesByTerm: {},
-  selectedTerm: 'WN25',
+  selectedTerm: 'WN2026',
 
   setSelectedTerm: (term: string) => {
     set({ selectedTerm: term });

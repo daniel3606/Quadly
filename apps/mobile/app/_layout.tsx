@@ -1,5 +1,6 @@
-import { Stack, useRouter, useSegments } from 'expo-router';
-import { useEffect } from 'react';
+import { Stack, useRouter, useSegments, useNavigationContainerRef } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as QueryParams from 'expo-auth-session/build/QueryParams';
 import { useAuthStore } from '../src/store/authStore';
@@ -12,6 +13,14 @@ export default function RootLayout() {
   const setSession = useAuthStore(s => s.setSession);
   const router = useRouter();
   const segments = useSegments();
+  const navigationRef = useNavigationContainerRef();
+  const [isNavigationReady, setIsNavigationReady] = useState(false);
+
+  useEffect(() => {
+    if (navigationRef?.isReady()) {
+      setIsNavigationReady(true);
+    }
+  });
 
   useEffect(() => {
     initialize();
@@ -57,7 +66,7 @@ export default function RootLayout() {
   }, [url]);
 
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized || !isNavigationReady) return;
 
     const inAuthGroup = segments[0] === '(auth)';
 
@@ -66,7 +75,17 @@ export default function RootLayout() {
     } else if (session && inAuthGroup) {
       router.replace('/(tabs)');
     }
-  }, [isInitialized, session]);
+  }, [isInitialized, session, isNavigationReady]);
+
+  // Show loading screen until auth is initialized - prevents premature
+  // rendering of tab screens that make authenticated API calls
+  if (!isInitialized) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#ffffff' }}>
+        <ActivityIndicator size="large" color="#00274C" />
+      </View>
+    );
+  }
 
   return <Stack screenOptions={{ headerShown: false }} />;
 }

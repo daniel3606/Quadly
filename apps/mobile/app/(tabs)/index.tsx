@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '../../src/store/authStore';
 import { useScheduleStore, ScheduleItem } from '../../src/store/scheduleStore';
@@ -58,7 +59,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
   const { selectedTerm, schedulesByTerm } = useScheduleStore();
-  const { boardsWithLatestPost, savedBoardIds, initialize, isInitialized } = useCommunityStore();
+  const { boardsWithLatestPost, savedBoardIds, initialize, isInitialized, fetchBoardsWithLatestPost } = useCommunityStore();
   
   const [hotPosts, setHotPosts] = useState<Post[]>([]);
   const [isLoadingHotPosts, setIsLoadingHotPosts] = useState(false);
@@ -77,6 +78,15 @@ export default function HomeScreen() {
       initialize();
     }
   }, [isInitialized]);
+
+  // Refresh board read status when tab regains focus
+  useFocusEffect(
+    useCallback(() => {
+      if (isInitialized) {
+        fetchBoardsWithLatestPost();
+      }
+    }, [isInitialized])
+  );
 
   // Fetch hot posts today
   useEffect(() => {
@@ -243,9 +253,11 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={styles.logo}>
-              <Text style={styles.logoText}>Q</Text>
-            </View>
+            <Image
+              source={require('../../assets/QuadlyIcon.jpg')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
             <View style={styles.headerTitles}>
               <Text style={styles.appName}>Quadly</Text>
               <Text style={styles.subtitle}>Campus Community</Text>
@@ -375,34 +387,28 @@ export default function HomeScreen() {
                 </Text>
               </View>
             ) : (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.boardsScrollContent}
-              >
-                {savedBoards.slice(0, 5).map((board) => (
+              <View style={styles.boardsCard}>
+                {savedBoards.map((board, index) => (
                   <TouchableOpacity
                     key={board.id}
-                    style={styles.boardCard}
+                    style={styles.boardRow}
                     onPress={() => handleBoardPress(board.id)}
-                    activeOpacity={0.7}
+                    activeOpacity={0.6}
                   >
-                    <Text style={styles.boardName} numberOfLines={2}>
+                    <Text style={styles.boardName} numberOfLines={1}>
                       {board.name}
                     </Text>
-                    {board.latestPost && (
-                      <View style={styles.latestPostContainer}>
-                        {!board.latestPost.isRead && (
-                          <View style={styles.unreadDot} />
-                        )}
-                        <Text style={styles.latestPostTitle} numberOfLines={1}>
-                          {board.latestPost.title}
-                        </Text>
+                    <Text style={styles.boardLatestPost} numberOfLines={1}>
+                      {board.latestPost?.title || 'No posts yet'}
+                    </Text>
+                    {board.latestPost && !board.latestPost.isRead && (
+                      <View style={styles.newBadge}>
+                        <Text style={styles.newBadgeText}>NEW</Text>
                       </View>
                     )}
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
+              </View>
             )}
           </View>
 
@@ -495,15 +501,7 @@ const styles = StyleSheet.create({
   logo: {
     width: 36,
     height: 36,
-    backgroundColor: '#00274C',
     borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#ffffff',
   },
   headerTitles: {
     marginLeft: 10,
@@ -652,40 +650,41 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
   },
   // Saved Boards Styles
-  boardsScrollContent: {
-    gap: 12,
-    paddingRight: 20,
-  },
-  boardCard: {
-    width: 140,
+  boardsCard: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
-    padding: 16,
+    overflow: 'hidden',
     ...cardShadow,
+  },
+  boardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   boardName: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1a1a1a',
-    marginBottom: 4,
+    width: 90,
+    marginRight: 10,
   },
-  latestPostContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  unreadDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.error,
-    marginRight: 6,
-  },
-  latestPostTitle: {
+  boardLatestPost: {
     flex: 1,
-    fontSize: 11,
-    color: '#666666',
-    lineHeight: 14,
+    fontSize: 13,
+    color: '#999999',
+    marginRight: 8,
+  },
+  newBadge: {
+    backgroundColor: colors.error,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  newBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
   },
   // Hot Posts Styles
   postsContainer: {

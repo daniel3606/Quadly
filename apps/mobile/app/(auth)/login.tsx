@@ -9,6 +9,7 @@ import {
   ScrollView,
   Modal,
   FlatList,
+  Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
@@ -158,9 +159,11 @@ export default function LoginScreen() {
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.logoSection}>
-          <View style={styles.logo}>
-            <Text style={styles.logoText}>Q</Text>
-          </View>
+          <Image
+            source={require('../../assets/QuadlyIcon.jpg')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
           <Text style={styles.title}>Quadly</Text>
           <Text style={styles.subtitle}>Sign in with your school email</Text>
         </View>
@@ -288,20 +291,12 @@ const styles = StyleSheet.create({
   logo: {
     width: 80,
     height: 80,
-    backgroundColor: '#00274C',
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 8,
-  },
-  logoText: {
-    fontSize: 40,
-    fontWeight: 'bold',
-    color: '#ffffff',
   },
   title: {
     fontSize: 32,

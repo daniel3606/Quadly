@@ -1,0 +1,8 @@
+[
+  { "code": "FA2024", "name": "Fall 2024", "year": 2024, "season": "FA", "is_current": false },
+  { "code": "WN2025", "name": "Winter 2025", "year": 2025, "season": "WN", "is_current": false },
+  { "code": "SP2025", "name": "Spring 2025", "year": 2025, "season": "SP", "is_current": false },
+  { "code": "SU2025", "name": "Summer 2025", "year": 2025, "season": "SU", "is_current": false },
+  { "code": "FA2025", "name": "Fall 2025", "year": 2025, "season": "FA", "is_current": true },
+  { "code": "WN2026", "name": "Winter 2026", "year": 2026, "season": "WN", "is_current": false }
+]
