@@ -26,7 +26,7 @@ export const colors = {
 
   // Tab bar
   tabBarBackground: '#ffffff',
-  tabBarActive: '#00274C',
+  tabBarActive: '#000000',
   tabBarInactive: '#999999',
 };
 

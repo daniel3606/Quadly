@@ -21,10 +21,8 @@ export default function ClassesScreen() {
 
         <View style={styles.content}>
           <View style={styles.placeholder}>
-            <Text style={styles.placeholderIcon}>📚</Text>
-            <Text style={styles.placeholderTitle}>Classes</Text>
             <Text style={styles.placeholderText}>
-              Browse and manage your classes
+              Professor & Courses Review/Comments coming soon
             </Text>
           </View>
         </View>
@@ -63,18 +61,8 @@ const styles = StyleSheet.create({
   placeholder: {
     alignItems: 'center',
   },
-  placeholderIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  placeholderTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 8,
-  },
   placeholderText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666666',
     textAlign: 'center',
   },

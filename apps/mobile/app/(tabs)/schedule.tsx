@@ -768,6 +768,13 @@ export default function ScheduleScreen() {
           </View>
         </Modal>
 
+        {/* Update Banner */}
+        <View style={styles.updateBanner}>
+          <Text style={styles.updateBannerText}>
+            The schedule feature is still being updated.
+          </Text>
+        </View>
+
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -874,6 +881,19 @@ const styles = StyleSheet.create({
   termOptionText: { fontSize: fontSize.md, color: colors.text },
   termOptionTextSelected: { color: colors.primary, fontWeight: '600' },
   checkmark: { fontSize: fontSize.lg, color: colors.primary },
+  updateBanner: {
+    backgroundColor: '#FFF3CD',
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FFECB5',
+  },
+  updateBannerText: {
+    fontSize: fontSize.sm,
+    color: '#664D03',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
   scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   gridContainer: {

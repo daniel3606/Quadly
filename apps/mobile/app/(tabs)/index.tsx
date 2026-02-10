@@ -17,6 +17,9 @@ import { useScheduleStore, ScheduleItem } from '../../src/store/scheduleStore';
 import { useCommunityStore, Post } from '../../src/store/communityStore';
 import { colors, fontSize, spacing, borderRadius, cardShadow } from '../../src/constants/colors';
 import { supabase } from '../../src/lib/supabase';
+import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
+
+const adUnitId = __DEV__ ? TestIds.ADAPTIVE_BANNER : 'ca-app-pub-7730847696902610/5867442604';
 // Hot score calculation function
 const calculateHotScore = (
   likeCount: number,
@@ -66,6 +69,8 @@ export default function HomeScreen() {
 
   const userEmail = user?.email ?? 'user@example.com';
   const userInitial = userEmail.charAt(0).toUpperCase();
+  const collegeName = (user?.user_metadata?.school as string) || 'University of Michigan';
+  const avatarUrl = (user?.user_metadata?.avatar_url ?? user?.user_metadata?.picture) as string | undefined;
 
   const scheduleItems = schedulesByTerm[selectedTerm] || [];
 
@@ -260,7 +265,7 @@ export default function HomeScreen() {
             />
             <View style={styles.headerTitles}>
               <Text style={styles.appName}>Quadly</Text>
-              <Text style={styles.subtitle}>Campus Community</Text>
+              <Text style={styles.subtitle}>{collegeName}</Text>
             </View>
           </View>
 
@@ -291,7 +296,11 @@ export default function HomeScreen() {
               style={styles.profileButton}
               onPress={() => router.push('/settings')}
             >
-              <Text style={styles.profileInitial}>{userInitial}</Text>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.profileAvatarImage} />
+              ) : (
+                <Text style={styles.profileInitial}>{userInitial}</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -412,6 +421,14 @@ export default function HomeScreen() {
             )}
           </View>
 
+          {/* Banner Ad */}
+          <View style={styles.adContainer}>
+            <BannerAd
+              unitId={adUnitId}
+              size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+            />
+          </View>
+
           {/* Hot Posts Today */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -509,7 +526,7 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#00274C',
+    color: '#000000',
   },
   subtitle: {
     fontSize: 11,
@@ -530,6 +547,7 @@ const styles = StyleSheet.create({
   notificationIcon: {
     width: 24,
     height: 24,
+    tintColor: '#00274C',
   },
   settingsButton: {
     width: 36,
@@ -538,8 +556,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   settingsIcon: {
-    width: 22,
-    height: 22,
+    width: 24,
+    height: 24,
     tintColor: '#00274C',
   },
   profileButton: {
@@ -549,6 +567,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#00274C',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#000000',
+  },
+  profileAvatarImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
   profileInitial: {
     fontSize: 16,
@@ -648,6 +674,15 @@ const styles = StyleSheet.create({
   scheduleBlockLocation: {
     fontSize: fontSize.xs - 2,
     color: 'rgba(255, 255, 255, 0.9)',
+  },
+  // Ad Styles
+  adContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e1e1e1',
   },
   // Saved Boards Styles
   boardsCard: {

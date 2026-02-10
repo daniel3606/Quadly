@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Image,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -19,6 +21,11 @@ export default function SettingsScreen() {
 
   const userEmail = user?.email ?? 'user@example.com';
   const userInitial = userEmail.charAt(0).toUpperCase();
+  const avatarUrl = (user?.user_metadata?.avatar_url ?? user?.user_metadata?.picture) as string | undefined;
+
+  const openUrl = (url: string) => {
+    Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open link'));
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -39,17 +46,16 @@ export default function SettingsScreen() {
     {
       title: 'Account',
       items: [
-        { icon: '👤', label: 'Edit Profile', onPress: () => {} },
-        { icon: '🔔', label: 'Notifications', onPress: () => {} },
+        { iconSource: require('../assets/profile_setting_icon.png'), label: 'Edit Profile', onPress: () => router.push('/edit-profile') },
+        { iconSource: require('../assets/notification_icon.png'), label: 'Notifications', onPress: () => router.push('/notification-settings') },
       ],
     },
     {
       title: 'Support',
       items: [
-        { icon: '❓', label: 'Help Center', onPress: () => {} },
-        { icon: '📝', label: 'Feedback', onPress: () => {} },
-        { icon: '📄', label: 'Terms of Service', onPress: () => {} },
-        { icon: '🔒', label: 'Privacy Policy', onPress: () => {} },
+        { iconSource: require('../assets/feedback_icon.png'), label: 'Feedback', onPress: () => openUrl('https://forms.gle/133T7X4YE3mHC63G8') },
+        { iconSource: require('../assets/terms_of_service_icon.png'), label: 'Terms of Service', onPress: () => openUrl('https://quadly.org/terms') },
+        { iconSource: require('../assets/privacy_icon.png'), label: 'Privacy Policy', onPress: () => openUrl('https://quadly.org/privacy') },
       ],
     },
   ];
@@ -84,7 +90,11 @@ export default function SettingsScreen() {
           {/* Profile Card */}
           <View style={styles.profileCard}>
             <View style={styles.profileAvatar}>
-              <Text style={styles.profileAvatarText}>{userInitial}</Text>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.profileAvatarImage} />
+              ) : (
+                <Text style={styles.profileAvatarText}>{userInitial}</Text>
+              )}
             </View>
             <View style={styles.profileInfo}>
               <Text style={styles.profileEmail}>{userEmail}</Text>
@@ -106,7 +116,7 @@ export default function SettingsScreen() {
                     onPress={item.onPress}
                     activeOpacity={0.6}
                   >
-                    <Text style={styles.settingsIcon}>{item.icon}</Text>
+                    <Image source={item.iconSource} style={styles.settingsIconImage} resizeMode="contain" />
                     <Text style={styles.settingsLabel}>{item.label}</Text>
                     <Text style={styles.settingsArrow}>›</Text>
                   </TouchableOpacity>
@@ -155,13 +165,13 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     fontSize: 24,
-    color: '#00274C',
+    color: '#000000',
   },
   headerTitle: {
     flex: 1,
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#00274C',
+    color: '#000000',
   },
   placeholder: {
     width: 36,
@@ -188,7 +198,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#00274C',
+    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -197,6 +207,11 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: 'bold',
     color: '#ffffff',
+  },
+  profileAvatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
   },
   profileInfo: {
     alignItems: 'center',
@@ -237,8 +252,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
-  settingsIcon: {
-    fontSize: 20,
+  settingsIconImage: {
+    width: 24,
+    height: 24,
     marginRight: 12,
   },
   settingsLabel: {

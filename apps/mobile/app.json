@@ -41,6 +41,13 @@
         {
           "photosPermission": "Allow Quadly to access your photos to add images to listings."
         }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-7730847696902610~3837063682",
+          "iosAppId": "ca-app-pub-7730847696902610~2355724969"
+        }
       ]
     ]
   }

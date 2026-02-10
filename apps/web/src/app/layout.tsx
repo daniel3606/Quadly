@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import './globals.css';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -16,10 +17,27 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>
+      <body className="flex min-h-screen flex-col">
         <ErrorBoundary>
           <ThemeProvider>
-            <ApiProvider>{children}</ApiProvider>
+            <ApiProvider>
+              <div className="flex-1">{children}</div>
+              <footer className="border-t border-gray-200 dark:border-gray-700 py-4 px-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                <Link
+                  href="/terms"
+                  className="hover:text-gray-900 dark:hover:text-white underline"
+                >
+                  Terms of Service
+                </Link>
+                {' · '}
+                <Link
+                  href="/privacy"
+                  className="hover:text-gray-900 dark:hover:text-white underline"
+                >
+                  Privacy Policy
+                </Link>
+              </footer>
+            </ApiProvider>
           </ThemeProvider>
         </ErrorBoundary>
       </body>
