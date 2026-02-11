@@ -1,11 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Image,
-  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useCommunityStore, BoardWithLatestPost } from '../../store/communityStore';
@@ -13,12 +12,13 @@ import { colors, spacing, borderRadius, fontSize, cardShadow } from '../../const
 
 interface BoardSelectorProps {
   onBoardSelect?: (board: Board) => void;
+  /** When provided, boards are filtered by this query (from header search). */
+  searchQuery?: string;
 }
 
-export function BoardSelector({ onBoardSelect }: BoardSelectorProps) {
+export function BoardSelector({ onBoardSelect, searchQuery = '' }: BoardSelectorProps) {
   const router = useRouter();
   const { boardsWithLatestPost, savedBoardIds, toggleSaveBoard } = useCommunityStore();
-  const [searchQuery, setSearchQuery] = useState('');
 
   const filteredBoards = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -107,18 +107,6 @@ export function BoardSelector({ onBoardSelect }: BoardSelectorProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search boards..."
-          placeholderTextColor={colors.textSecondary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-      </View>
-
       {filteredBoards.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No boards found</Text>
@@ -138,20 +126,6 @@ export function BoardSelector({ onBoardSelect }: BoardSelectorProps) {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.background,
-  },
-  searchContainer: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  searchInput: {
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: fontSize.md,
-    color: colors.text,
   },
   boardsGrid: {
     flexDirection: 'row',
@@ -223,6 +197,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xl,
     alignItems: 'center',
     width: '100%',
+    paddingHorizontal: spacing.md,
   },
   emptyText: {
     fontSize: fontSize.md,

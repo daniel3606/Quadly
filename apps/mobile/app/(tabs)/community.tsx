@@ -1,16 +1,20 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Text, ScrollView } from 'react-native';
+import { View, StyleSheet, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { useAuthStore } from '../../src/store/authStore';
 import { useCommunityStore } from '../../src/store/communityStore';
 import { BoardSelector } from '../../src/components/community';
 import { colors, spacing, fontSize } from '../../src/constants';
 
 export default function CommunityScreen() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const { initialize, isInitialized } = useCommunityStore();
+
+  const schoolName = (user?.user_metadata?.school as string) || 'Your University';
 
   useEffect(() => {
     if (!isInitialized) {
@@ -29,7 +33,17 @@ export default function CommunityScreen() {
         <StatusBar style="dark" />
 
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Community</Text>
+          <View style={styles.headerLeft}>
+            <Text style={styles.headerTitle}>Community</Text>
+            <Text style={styles.schoolName} numberOfLines={1}>{schoolName}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.searchButton}
+            onPress={() => router.push('/community-search')}
+            activeOpacity={0.7}
+          >
+            <Image source={require('../../assets/search_icon.png')} style={styles.searchIcon} resizeMode="contain" />
+          </TouchableOpacity>
         </View>
 
         <ScrollView
@@ -37,9 +51,7 @@ export default function CommunityScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-      
-            <BoardSelector />
-    
+          <BoardSelector />
         </ScrollView>
 
         <View style={{ height: 85 }} />
@@ -56,16 +68,37 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     backgroundColor: 'transparent',
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  headerLeft: {
+    flex: 1,
+    justifyContent: 'center',
+    minWidth: 0,
+  },
   headerTitle: {
     fontSize: fontSize.xxl,
     fontWeight: 'bold',
-    color: colors.primary,
+    color: '#000000',
+  },
+  schoolName: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary ?? colors.text,
+    marginTop: 2,
+  },
+  searchButton: {
+    padding: spacing.sm,
+    marginLeft: spacing.sm,
+  },
+  searchIcon: {
+    width: 24,
+    height: 24,
   },
   scrollView: {
     flex: 1,
