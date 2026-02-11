@@ -17,9 +17,17 @@ import { useScheduleStore, ScheduleItem } from '../../src/store/scheduleStore';
 import { useCommunityStore, Post } from '../../src/store/communityStore';
 import { colors, fontSize, spacing, borderRadius, cardShadow } from '../../src/constants/colors';
 import { supabase } from '../../src/lib/supabase';
-import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
-
-const adUnitId = __DEV__ ? TestIds.ADAPTIVE_BANNER : 'ca-app-pub-7730847696902610/5867442604';
+let BannerAd: any = null;
+let BannerAdSize: any = {};
+let adUnitId = '';
+try {
+  const ads = require('react-native-google-mobile-ads');
+  BannerAd = ads.BannerAd;
+  BannerAdSize = ads.BannerAdSize;
+  adUnitId = __DEV__ ? ads.TestIds.ADAPTIVE_BANNER : 'ca-app-pub-7730847696902610/5867442604';
+} catch {
+  // Native module not available (e.g. Expo Go)
+}
 // Hot score calculation function
 const calculateHotScore = (
   likeCount: number,
@@ -60,7 +68,7 @@ const formatTime = (hour: number): string => {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { user, universityId } = useAuthStore();
   const { selectedTerm, schedulesByTerm } = useScheduleStore();
   const { boardsWithLatestPost, savedBoardIds, initialize, isInitialized, fetchBoardsWithLatestPost } = useCommunityStore();
   
@@ -69,7 +77,7 @@ export default function HomeScreen() {
 
   const userEmail = user?.email ?? 'user@example.com';
   const userInitial = userEmail.charAt(0).toUpperCase();
-  const collegeName = (user?.user_metadata?.school as string) || 'University of Michigan';
+  const collegeName = (user?.user_metadata?.school as string) || 'Your University';
   const avatarUrl = (user?.user_metadata?.avatar_url ?? user?.user_metadata?.picture) as string | undefined;
 
   const scheduleItems = schedulesByTerm[selectedTerm] || [];
@@ -105,7 +113,7 @@ export default function HomeScreen() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const todayISO = today.toISOString();
-
+      // RLS policy filters by university_id automatically
       const { data: postsData, error } = await supabase
         .from('posts')
         .select('*')
@@ -422,12 +430,14 @@ export default function HomeScreen() {
           </View>
 
           {/* Banner Ad */}
-          <View style={styles.adContainer}>
-            <BannerAd
-              unitId={adUnitId}
-              size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-            />
-          </View>
+          {BannerAd && (
+            <View style={styles.adContainer}>
+              <BannerAd
+                unitId={adUnitId}
+                size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+              />
+            </View>
+          )}
 
           {/* Hot Posts Today */}
           <View style={styles.section}>
@@ -446,42 +456,50 @@ export default function HomeScreen() {
                 </Text>
               </View>
             ) : (
-              <View style={styles.postsContainer}>
-                {hotPosts.map((post) => (
-                  <TouchableOpacity
-                    key={post.id}
-                    style={styles.postCard}
-                    onPress={() => handlePostPress(post.id)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.postTitle} numberOfLines={2}>
-                      {post.title}
-                    </Text>
-                    <View style={styles.postStats}>
-                      <View style={styles.postStatItem}>
-                        <Image
-                          source={require('../../assets/view_icon.png')}
-                          style={styles.postStatIcon}
-                        />
-                        <Text style={styles.postStatText}>{post.view_count}</Text>
+              <View style={styles.hotPostsCard}>
+                {hotPosts.map((post) => {
+                  const overview = (post.body || '').replace(/\s+/g, ' ').trim().slice(0, 35);
+                  return (
+                    <TouchableOpacity
+                      key={post.id}
+                      style={styles.hotPostRow}
+                      onPress={() => handlePostPress(post.id)}
+                      activeOpacity={0.6}
+                    >
+                      <View style={styles.hotPostRowContent}>
+                        <Text style={styles.hotPostTitle} numberOfLines={1}>
+                          {post.title}
+                        </Text>
+                        <Text style={styles.hotPostOverview} numberOfLines={1}>
+                          {overview ? ` · ${overview}` : ''}
+                        </Text>
                       </View>
-                      <View style={styles.postStatItem}>
-                        <Image
-                          source={require('../../assets/like_icon.png')}
-                          style={styles.postStatIcon}
-                        />
-                        <Text style={styles.postStatText}>{post.like_count}</Text>
+                      <View style={styles.hotPostStats}>
+                        <View style={styles.hotPostStatItem}>
+                          <Image
+                            source={require('../../assets/view_icon.png')}
+                            style={styles.hotPostStatIcon}
+                          />
+                          <Text style={styles.hotPostStatText}>{post.view_count}</Text>
+                        </View>
+                        <View style={styles.hotPostStatItem}>
+                          <Image
+                            source={require('../../assets/like_icon.png')}
+                            style={styles.hotPostStatIcon}
+                          />
+                          <Text style={styles.hotPostStatText}>{post.like_count}</Text>
+                        </View>
+                        <View style={styles.hotPostStatItem}>
+                          <Image
+                            source={require('../../assets/comment_icon.png')}
+                            style={styles.hotPostStatIcon}
+                          />
+                          <Text style={styles.hotPostStatText}>{post.comment_count}</Text>
+                        </View>
                       </View>
-                      <View style={styles.postStatItem}>
-                        <Image
-                          source={require('../../assets/comment_icon.png')}
-                          style={styles.postStatIcon}
-                        />
-                        <Text style={styles.postStatText}>{post.comment_count}</Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             )}
           </View>
@@ -689,13 +707,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 12,
     overflow: 'hidden',
+    paddingVertical: 4,
     ...cardShadow,
   },
   boardRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   boardName: {
     fontSize: 14,
@@ -721,38 +740,56 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
-  // Hot Posts Styles
-  postsContainer: {
-    gap: 12,
-  },
-  postCard: {
+  // Hot Posts Styles (block format like Saved Boards)
+  hotPostsCard: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
-    padding: 16,
+    overflow: 'hidden',
+    paddingVertical: 4,
     ...cardShadow,
   },
-  postTitle: {
-    fontSize: 15,
+  hotPostRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  hotPostRowContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+    marginRight: 10,
+  },
+  hotPostTitle: {
+    fontSize: 14,
     fontWeight: '600',
     color: '#1a1a1a',
-    marginBottom: 12,
-    lineHeight: 20,
+    flexShrink: 0,
   },
-  postStats: {
+  hotPostOverview: {
+    fontSize: 13,
+    color: '#999999',
+    flex: 1,
+    minWidth: 0,
+    marginLeft: 2,
+  },
+  hotPostStats: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 8,
+    flexShrink: 0,
   },
-  postStatItem: {
+  hotPostStatItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  postStatIcon: {
-    width: 14,
-    height: 14,
+  hotPostStatIcon: {
+    width: 12,
+    height: 12,
     tintColor: '#666666',
   },
-  postStatText: {
+  hotPostStatText: {
     fontSize: 12,
     color: '#666666',
   },

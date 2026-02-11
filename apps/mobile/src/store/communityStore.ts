@@ -122,6 +122,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   fetchBoards: async () => {
     try {
+      // RLS policy filters by university_id automatically
       const { data, error } = await supabase
         .from('boards')
         .select('*')
@@ -348,7 +349,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   createPost: async (boardId: string, title: string, body: string, isAnonymous: boolean) => {
-    const userId = useAuthStore.getState().user?.id;
+    const { user, universityId } = useAuthStore.getState();
+    const userId = user?.id;
     if (!userId) {
       return { error: new Error('User not authenticated') };
     }
@@ -362,6 +364,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
           is_anonymous: isAnonymous,
           title,
           body,
+          ...(universityId ? { university_id: universityId } : {}),
         })
         .select()
         .single();

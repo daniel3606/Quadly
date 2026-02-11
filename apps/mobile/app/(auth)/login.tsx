@@ -143,7 +143,29 @@ export default function LoginScreen() {
         console.log('[Auth] Callback URL:', res.url);
         const session = await createSessionFromUrl(res.url);
         if (session) {
-          setSession(session);
+          // Validate email domain matches selected university
+          const email = session.user.email ?? '';
+          const expectedDomain = selectedUniversity.domain;
+          if (!email.endsWith(`@${expectedDomain}`)) {
+            await supabase.auth.signOut();
+            Alert.alert(
+              'Wrong Email',
+              `Please use your @${expectedDomain} email to sign in.`
+            );
+            return;
+          }
+
+          // Store university info in user metadata
+          await supabase.auth.updateUser({
+            data: {
+              school: selectedUniversity.name,
+              university_id: selectedUniversity.id,
+            },
+          });
+
+          // Re-fetch session so metadata is up to date
+          const { data: { session: updatedSession } } = await supabase.auth.getSession();
+          setSession(updatedSession);
         }
       }
     } catch (error: any) {

@@ -121,7 +121,7 @@ interface SectionResult {
 
 export default function ScheduleScreen() {
   const timeSlots = generateTimeSlots();
-  const { user } = useAuthStore();
+  const { user, universityId } = useAuthStore();
   const {
     selectedTerm,
     setSelectedTerm,
@@ -157,18 +157,20 @@ export default function ScheduleScreen() {
   // Fetch terms from DB
   useEffect(() => {
     (async () => {
+      // RLS policy filters by university_id automatically
       const { data } = await supabase
         .from('terms')
         .select('code, name, is_current')
         .order('year', { ascending: false })
         .order('code', { ascending: false });
+
       if (data && data.length > 0) {
         setDbTerms(data);
         const current = data.find((t) => t.is_current);
         if (current) setSelectedTerm(current.code);
       }
     })();
-  }, []);
+  }, [universityId]);
 
   const scheduleItems = schedulesByTerm[selectedTerm] || [];
 
@@ -188,6 +190,7 @@ export default function ScheduleScreen() {
         const q = text.trim();
         const subjectCatalogMatch = q.match(/^([A-Za-z]+)\s*(\d+\w*)$/);
 
+        // RLS policy filters by university_id automatically
         let query = supabase
           .from('courses')
           .select('id, subject_code, catalog_number, title, credits_min, credits_max')
@@ -217,6 +220,7 @@ export default function ScheduleScreen() {
     setIsLoadingSections(true);
 
     try {
+      // RLS policy filters by university_id automatically
       const { data, error } = await supabase
         .from('sections')
         .select(`
@@ -300,7 +304,7 @@ export default function ScheduleScreen() {
     }
   };
 
-  const universityName = (user?.user_metadata?.school as string) || 'University of Michigan';
+  const universityName = (user?.user_metadata?.school as string) || 'Your University';
 
   const getColorForClassName = (className: string): string => {
     let hash = 0;

@@ -52,6 +52,7 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
   fetchListings: async () => {
     set({ isLoading: true });
     try {
+      // RLS policy filters by university_id automatically
       const { data, error } = await supabase.rpc('get_marketplace_listings', {
         p_status: 'active',
         p_limit: 50,
@@ -72,6 +73,7 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
     if (!userId) return;
 
     try {
+      // RLS policy filters by university_id automatically
       const { data, error } = await supabase
         .from('marketplace_listings')
         .select('*')
@@ -101,7 +103,8 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
   },
 
   createListing: async (title, description, price, imageUris) => {
-    const userId = useAuthStore.getState().user?.id;
+    const { user, universityId } = useAuthStore.getState();
+    const userId = user?.id;
     if (!userId) return { error: new Error('User not authenticated') };
 
     try {
@@ -124,6 +127,7 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
           description,
           price,
           images: imageUrls,
+          ...(universityId ? { university_id: universityId } : {}),
         });
 
       if (error) throw error;

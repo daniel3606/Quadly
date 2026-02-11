@@ -220,28 +220,35 @@ export default function EditProfileScreen() {
             </TouchableOpacity>
             {showYearPicker && (
               <View style={styles.yearPicker}>
-                {GRADUATION_YEARS.map((year) => (
-                  <TouchableOpacity
-                    key={year}
-                    style={[
-                      styles.yearOption,
-                      graduationYear === year && styles.yearOptionSelected,
-                    ]}
-                    onPress={() => {
-                      setGraduationYear(year);
-                      setShowYearPicker(false);
-                    }}
-                  >
-                    <Text
+                <ScrollView
+                  style={styles.yearPickerScroll}
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={true}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {GRADUATION_YEARS.map((year) => (
+                    <TouchableOpacity
+                      key={year}
                       style={[
-                        styles.yearOptionText,
-                        graduationYear === year && styles.yearOptionTextSelected,
+                        styles.yearOption,
+                        graduationYear === year && styles.yearOptionSelected,
                       ]}
+                      onPress={() => {
+                        setGraduationYear(year);
+                        setShowYearPicker(false);
+                      }}
                     >
-                      {year}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[
+                          styles.yearOptionText,
+                          graduationYear === year && styles.yearOptionTextSelected,
+                        ]}
+                      >
+                        {year}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
             )}
           </View>
@@ -398,6 +405,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e0e0e0',
+    maxHeight: 200,
+    overflow: 'hidden',
+  },
+  yearPickerScroll: {
     maxHeight: 200,
   },
   yearOption: {

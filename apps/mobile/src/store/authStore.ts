@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 interface AuthState {
   session: Session | null;
   user: User | null;
+  universityId: string | null;
   isLoading: boolean;
   isInitialized: boolean;
   hasInitialized: boolean;
@@ -18,6 +19,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set, get) => ({
   session: null,
   user: null,
+  universityId: null,
   isLoading: true,
   isInitialized: false,
   hasInitialized: false,
@@ -31,12 +33,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({
       session,
       user: session?.user ?? null,
+      universityId: (session?.user?.user_metadata?.university_id as string) ?? null,
       isLoading: false,
       isInitialized: true,
     });
 
     supabase.auth.onAuthStateChange((_event, session) => {
-      set({ session, user: session?.user ?? null });
+      set({
+        session,
+        user: session?.user ?? null,
+        universityId: (session?.user?.user_metadata?.university_id as string) ?? null,
+      });
     });
   },
 
@@ -48,6 +55,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({
       session: null,
       user: null,
+      universityId: null,
       isLoading: false,
     });
   },
@@ -56,6 +64,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({
       session,
       user: session?.user ?? null,
+      universityId: (session?.user?.user_metadata?.university_id as string) ?? null,
     });
   },
 }));
