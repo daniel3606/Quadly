@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, StyleSheet, Text, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -46,6 +46,41 @@ export default function CommunityScreen() {
           </TouchableOpacity>
         </View>
 
+        <View style={styles.quickAccessGrid}>
+          <View style={styles.quickAccessRow}>
+            <TouchableOpacity
+              style={[styles.quickAccessButton, { backgroundColor: '#81A4E5' }]}
+              onPress={() => router.push('/filtered-posts?filter=my-posts')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.quickAccessText}>My Posts</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.quickAccessButton, { backgroundColor: '#E18B7A' }]}
+              onPress={() => router.push('/filtered-posts?filter=liked')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.quickAccessText}>Liked Posts</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.quickAccessRow}>
+            <TouchableOpacity
+              style={[styles.quickAccessButton, { backgroundColor: '#AEC97C' }]}
+              onPress={() => router.push('/filtered-posts?filter=my-comments')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.quickAccessText}>My Comments</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.quickAccessButton, { backgroundColor: '#9B88D9' }]}
+              onPress={() => Alert.alert('Saved Posts', 'This feature is coming soon!')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.quickAccessText}>Saved Posts</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -71,11 +106,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.md + 8,
     paddingVertical: spacing.md,
     backgroundColor: 'transparent',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   headerLeft: {
     flex: 1,
@@ -85,7 +118,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: fontSize.xxl,
     fontWeight: 'bold',
-    color: '#000000',
+    color: '#121212',
   },
   schoolName: {
     fontSize: fontSize.sm,
@@ -99,6 +132,27 @@ const styles = StyleSheet.create({
   searchIcon: {
     width: 24,
     height: 24,
+  },
+  quickAccessGrid: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
+  },
+  quickAccessRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  quickAccessButton: {
+    flex: 1,
+    aspectRatio: 2.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  quickAccessText: {
+    color: '#ffffff',
+    fontSize: fontSize.sm,
+    fontWeight: '600',
   },
   scrollView: {
     flex: 1,

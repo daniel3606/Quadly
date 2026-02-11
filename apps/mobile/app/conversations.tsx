@@ -62,17 +62,11 @@ export default function ConversationsScreen() {
       <View style={styles.conversationContent}>
         <View style={styles.topRow}>
           <View style={styles.userInfo}>
-            {item.other_user_avatar ? (
-              <Image source={{ uri: item.other_user_avatar }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarText}>
-                  {item.other_user_name?.charAt(0)?.toUpperCase() || '?'}
-                </Text>
-              </View>
-            )}
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarText}>?</Text>
+            </View>
             <Text style={styles.userName} numberOfLines={1}>
-              {item.other_user_name}
+              Anonymous
             </Text>
           </View>
           <Text style={styles.time}>{formatTime(item.last_message_at)}</Text>

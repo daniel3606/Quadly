@@ -32,6 +32,19 @@ export interface Post {
   updated_at: string;
   board?: Board;
   is_liked?: boolean;
+  /** Display name for author (from profiles or user_metadata). Shown when not anonymous. */
+  author_display_name?: string | null;
+}
+
+export interface LatestPostSummary {
+  id: string;
+  title: string;
+  body: string;
+  like_count: number;
+  comment_count: number;
+  view_count: number;
+  created_at: string;
+  isRead: boolean;
 }
 
 export interface BoardWithLatestPost extends Board {
@@ -41,6 +54,8 @@ export interface BoardWithLatestPost extends Board {
     created_at: string;
     isRead: boolean;
   };
+  /** Three most recent posts with full stats (for community cards) */
+  latestPosts?: LatestPostSummary[];
 }
 
 interface CommunityState {
@@ -51,6 +66,12 @@ interface CommunityState {
   posts: Post[];
   isLoading: boolean;
   isInitialized: boolean;
+  /** Results from post search (title/body). Cleared when query is empty. */
+  searchResults: Post[];
+  searchResultsLoading: boolean;
+  /** Filtered posts (my posts, liked, commented). */
+  filteredPosts: Post[];
+  filteredPostsLoading: boolean;
 
   // Actions
   initialize: () => Promise<void>;
@@ -60,6 +81,10 @@ interface CommunityState {
   toggleSaveBoard: (boardId: string) => Promise<void>;
   setSelectedBoard: (boardId: string | null) => void;
   fetchPosts: (boardId: string) => Promise<void>;
+  searchPosts: (query: string) => Promise<void>;
+  fetchMyPosts: () => Promise<void>;
+  fetchLikedPosts: () => Promise<void>;
+  fetchMyCommentedPosts: () => Promise<void>;
   createPost: (boardId: string, title: string, body: string, isAnonymous: boolean) => Promise<{ error: Error | null }>;
   likePost: (postId: string) => Promise<void>;
   incrementViewCount: (postId: string) => Promise<void>;
@@ -74,6 +99,10 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   posts: [],
   isLoading: false,
   isInitialized: false,
+  searchResults: [],
+  searchResultsLoading: false,
+  filteredPosts: [],
+  filteredPostsLoading: false,
 
   initialize: async () => {
     if (get().isInitialized) return;
@@ -146,43 +175,52 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       const { boards } = get();
       if (boards.length === 0) return;
 
-      // Fetch latest post for each board
+      // Fetch 3 latest posts per board (with full stats for community cards)
       const boardsWithPosts: BoardWithLatestPost[] = await Promise.all(
         boards.map(async (board) => {
-          // Get latest post for this board
-          const { data: latestPostData } = await supabase
+          const { data: postsData } = await supabase
             .from('posts')
-            .select('id, title, created_at')
+            .select('id, title, body, like_count, comment_count, view_count, created_at')
             .eq('board_id', board.id)
             .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            .limit(3);
 
-          if (!latestPostData) {
+          if (!postsData || postsData.length === 0) {
             return { ...board };
           }
 
-          // Check if user has viewed this post
-          let isRead = false;
-          if (userId) {
-            const { data: viewData } = await supabase
-              .from('post_views')
-              .select('id')
-              .eq('user_id', userId)
-              .eq('post_id', latestPostData.id)
-              .single();
+          const latestPosts: LatestPostSummary[] = await Promise.all(
+            postsData.map(async (p) => {
+              let isRead = false;
+              if (userId) {
+                const { data: viewData } = await supabase
+                  .from('post_views')
+                  .select('id')
+                  .eq('user_id', userId)
+                  .eq('post_id', p.id)
+                  .single();
+                isRead = !!viewData;
+              }
+              return {
+                id: p.id,
+                title: p.title,
+                body: p.body ?? '',
+                like_count: p.like_count ?? 0,
+                comment_count: p.comment_count ?? 0,
+                view_count: p.view_count ?? 0,
+                created_at: p.created_at,
+                isRead,
+              };
+            })
+          );
 
-            isRead = !!viewData;
-          }
-
+          const first = latestPosts[0];
           return {
             ...board,
-            latestPost: {
-              id: latestPostData.id,
-              title: latestPostData.title,
-              created_at: latestPostData.created_at,
-              isRead,
-            },
+            latestPost: first
+              ? { id: first.id, title: first.title, created_at: first.created_at, isRead: first.isRead }
+              : undefined,
+            latestPosts,
           };
         })
       );
@@ -308,6 +346,157 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     }
   },
 
+  searchPosts: async (query: string) => {
+    const q = query.trim();
+    if (!q) {
+      set({ searchResults: [], searchResultsLoading: false });
+      return;
+    }
+    set({ searchResultsLoading: true });
+    const userId = useAuthStore.getState().user?.id;
+    const escapeIlike = (s: string) => s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+    const safeQ = escapeIlike(q);
+
+    try {
+      const { data: postsData, error: postsError } = await supabase
+        .from('posts')
+        .select('*')
+        .or(`title.ilike.%${safeQ}%,body.ilike.%${safeQ}%`)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (postsError) throw postsError;
+
+      const postList = postsData || [];
+      let likedPostIds: string[] = [];
+      if (userId && postList.length > 0) {
+        const postIds = postList.map((p) => p.id);
+        const { data: likesData } = await supabase
+          .from('post_likes')
+          .select('post_id')
+          .eq('user_id', userId)
+          .in('post_id', postIds);
+        likedPostIds = likesData?.map((l) => l.post_id) || [];
+      }
+
+      const { boards } = get();
+      const posts: Post[] = postList.map((post) => ({
+        ...post,
+        is_liked: likedPostIds.includes(post.id),
+        board: boards.find((b) => b.id === post.board_id),
+      }));
+
+      set({ searchResults: posts, searchResultsLoading: false });
+    } catch (error) {
+      console.error('Failed to search posts:', error);
+      set({ searchResults: [], searchResultsLoading: false });
+    }
+  },
+
+  fetchMyPosts: async () => {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) return;
+    set({ filteredPostsLoading: true });
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('author_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      const { boards } = get();
+      const posts: Post[] = (data || []).map((post) => ({
+        ...post,
+        board: boards.find((b) => b.id === post.board_id),
+      }));
+      set({ filteredPosts: posts, filteredPostsLoading: false });
+    } catch (error) {
+      console.error('Failed to fetch my posts:', error);
+      set({ filteredPosts: [], filteredPostsLoading: false });
+    }
+  },
+
+  fetchLikedPosts: async () => {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) return;
+    set({ filteredPostsLoading: true });
+    try {
+      const { data: likesData, error: likesError } = await supabase
+        .from('post_likes')
+        .select('post_id')
+        .eq('user_id', userId);
+      if (likesError) throw likesError;
+      const postIds = likesData?.map((l) => l.post_id) || [];
+      if (postIds.length === 0) {
+        set({ filteredPosts: [], filteredPostsLoading: false });
+        return;
+      }
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .in('id', postIds)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      const { boards } = get();
+      const posts: Post[] = (data || []).map((post) => ({
+        ...post,
+        is_liked: true,
+        board: boards.find((b) => b.id === post.board_id),
+      }));
+      set({ filteredPosts: posts, filteredPostsLoading: false });
+    } catch (error) {
+      console.error('Failed to fetch liked posts:', error);
+      set({ filteredPosts: [], filteredPostsLoading: false });
+    }
+  },
+
+  fetchMyCommentedPosts: async () => {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) return;
+    set({ filteredPostsLoading: true });
+    try {
+      const { data: commentsData, error: commentsError } = await supabase
+        .from('comments')
+        .select('post_id')
+        .eq('author_id', userId);
+      if (commentsError) throw commentsError;
+      const postIds = [...new Set(commentsData?.map((c) => c.post_id) || [])];
+      if (postIds.length === 0) {
+        set({ filteredPosts: [], filteredPostsLoading: false });
+        return;
+      }
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .in('id', postIds)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      const { boards } = get();
+      let likedPostIds: string[] = [];
+      if (data && data.length > 0) {
+        const ids = data.map((p) => p.id);
+        const { data: likesData } = await supabase
+          .from('post_likes')
+          .select('post_id')
+          .eq('user_id', userId)
+          .in('post_id', ids);
+        likedPostIds = likesData?.map((l) => l.post_id) || [];
+      }
+      const posts: Post[] = (data || []).map((post) => ({
+        ...post,
+        is_liked: likedPostIds.includes(post.id),
+        board: boards.find((b) => b.id === post.board_id),
+      }));
+      set({ filteredPosts: posts, filteredPostsLoading: false });
+    } catch (error) {
+      console.error('Failed to fetch commented posts:', error);
+      set({ filteredPosts: [], filteredPostsLoading: false });
+    }
+  },
+
   fetchPosts: async (boardId: string) => {
     set({ isLoading: true });
     const userId = useAuthStore.getState().user?.id;
@@ -411,7 +600,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             ? { ...p, is_liked: false, like_count: Math.max(0, p.like_count - 1) }
             : p
         );
-        set({ posts: updatedPosts });
+        const { searchResults } = get();
+        const updatedSearch = searchResults.map((p) =>
+          p.id === postId
+            ? { ...p, is_liked: false, like_count: Math.max(0, p.like_count - 1) }
+            : p
+        );
+        set({ posts: updatedPosts, searchResults: updatedSearch });
       } else {
         // Like
         const { error } = await supabase
@@ -429,7 +624,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             ? { ...p, is_liked: true, like_count: p.like_count + 1 }
             : p
         );
-        set({ posts: updatedPosts });
+        const { searchResults } = get();
+        const updatedSearch = searchResults.map((p) =>
+          p.id === postId
+            ? { ...p, is_liked: true, like_count: p.like_count + 1 }
+            : p
+        );
+        set({ posts: updatedPosts, searchResults: updatedSearch });
       }
     } catch (error) {
       console.error('Failed to toggle like:', error);
@@ -460,11 +661,14 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         });
 
         // Update local state
-        const { posts } = get();
+        const { posts, searchResults } = get();
         const updatedPosts = posts.map((p) =>
           p.id === postId ? { ...p, view_count: p.view_count + 1 } : p
         );
-        set({ posts: updatedPosts });
+        const updatedSearch = searchResults.map((p) =>
+          p.id === postId ? { ...p, view_count: p.view_count + 1 } : p
+        );
+        set({ posts: updatedPosts, searchResults: updatedSearch });
 
         // Refresh boards with latest posts to update unread indicators
         await get().fetchBoardsWithLatestPost();

@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api';
 import { Header } from '@/components/Header';
+import { DotPattern } from '@/components/ui/dot-pattern';
+import { cn } from '@/lib/utils';
 
 interface Board {
   id: string;
@@ -20,23 +22,15 @@ export default function BoardsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Only run on client side
     if (typeof window === 'undefined') return;
-    
     let cancelled = false;
-    
-    // Check if user is authenticated
     const token = localStorage.getItem('auth_token');
     if (!token) {
       router.push('/login');
       setLoading(false);
       return;
     }
-
-    // Set token for API client
     apiClient.setToken(token);
-
-    // Fetch boards
     apiClient.get<Board[]>('/boards')
       .then((boardsData) => {
         if (!cancelled) {
@@ -46,21 +40,16 @@ export default function BoardsPage() {
       })
       .catch((error) => {
         console.error('Failed to fetch data:', error);
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [router]);
 
   if (loading) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-white dark:bg-gray-900">
+      <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-300 border-t-umich-blue mx-auto mb-4" />
           <p className="text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </main>
@@ -68,25 +57,24 @@ export default function BoardsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900 relative">
+      <DotPattern className="opacity-70" />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Header />
 
-        {/* Page Header */}
         <div className="mt-8 mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            All Boards
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">
+            Community
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
             Explore discussion boards and join conversations
           </p>
         </div>
 
-        {/* All Boards Section */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="relative bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl shadow-lg p-6 sm:p-8">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                 All Boards
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -95,23 +83,41 @@ export default function BoardsPage() {
             </div>
           </div>
           {boards.length === 0 ? (
-            <div className="text-center py-12">
+            <div className="text-center py-12 rounded-xl bg-gray-50 dark:bg-gray-800/50">
               <p className="text-gray-500 dark:text-gray-400">
                 No boards available at the moment.
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {boards.map((board) => (
+              {boards.map((board, index) => (
                 <div
                   key={board.id}
-                  className="group block p-5 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-400 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 transition-all"
+                  className={cn(
+                    'opacity-0 animate-fade-in-up',
+                    'group relative overflow-hidden rounded-xl',
+                    'bg-white dark:bg-gray-800/80',
+                    'border-0 shadow-lg hover:shadow-xl',
+                    'outline-none ring-0',
+                    'transition-all duration-300 ease-out'
+                  )}
+                  style={{ animationDelay: `${index * 0.06}s`, animationFillMode: 'forwards' }}
                 >
-                  <Link href={`/boards/${board.key}`}>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                  <Link href={`/boards/${board.key}`} className="block p-5 outline-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none">
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white group-hover:text-umich-blue dark:group-hover:text-umich-blue transition-colors">
                       {board.name}
                     </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      View discussions →
+                    </p>
                   </Link>
+                  <div
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-xl"
+                    style={{
+                      background: 'linear-gradient(105deg, transparent 40%, rgba(0, 39, 76, 0.03) 45%, rgba(0, 39, 76, 0.06) 50%, transparent 55%)',
+                      backgroundSize: '200% 100%',
+                    }}
+                  />
                 </div>
               ))}
             </div>

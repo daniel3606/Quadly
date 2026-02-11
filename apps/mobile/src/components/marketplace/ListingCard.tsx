@@ -30,20 +30,6 @@ export default function ListingCard({ listing }: ListingCardProps) {
           {listing.title}
         </Text>
         <Text style={styles.price}>${listing.price.toFixed(2)}</Text>
-        <View style={styles.sellerRow}>
-          {listing.seller_avatar_url ? (
-            <Image source={{ uri: listing.seller_avatar_url }} style={styles.avatar} />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarText}>
-                {listing.seller_name?.charAt(0)?.toUpperCase() || '?'}
-              </Text>
-            </View>
-          )}
-          <Text style={styles.sellerName} numberOfLines={1}>
-            {listing.seller_name}
-          </Text>
-        </View>
       </View>
     </TouchableOpacity>
   );
@@ -78,34 +64,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#00274C',
     marginBottom: 6,
-  },
-  sellerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatar: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    marginRight: 6,
-  },
-  avatarPlaceholder: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#00274C',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 6,
-  },
-  avatarText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  sellerName: {
-    flex: 1,
-    fontSize: 12,
-    color: '#666666',
   },
 });

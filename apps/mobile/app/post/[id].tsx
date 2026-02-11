@@ -44,6 +44,7 @@ export default function PostDetailScreen() {
   const [viewCount, setViewCount] = useState(0);
   const [commentText, setCommentText] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [isReporting, setIsReporting] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -206,6 +207,68 @@ export default function PostDetailScreen() {
     }
   };
 
+  const handleReport = () => {
+    if (!user?.id) {
+      Alert.alert('Login Required', 'Please login to report posts');
+      return;
+    }
+
+    Alert.alert('Report Post', 'Select a reason for reporting this post:', [
+      { text: 'Spam', onPress: () => submitReport('spam') },
+      { text: 'Harassment', onPress: () => submitReport('harassment') },
+      { text: 'Inappropriate Content', onPress: () => submitReport('inappropriate') },
+      { text: 'Misinformation', onPress: () => submitReport('misinformation') },
+      { text: 'Other', onPress: () => submitReport('other') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const submitReport = async (reason: string) => {
+    if (isReporting) return;
+    setIsReporting(true);
+
+    try {
+      const { error } = await supabase.from('post_reports').insert({
+        post_id: id,
+        reporter_id: user!.id,
+        reason,
+      });
+
+      if (error) {
+        if (error.code === '23505') {
+          Alert.alert('Already Reported', 'You have already reported this post.');
+        } else {
+          throw error;
+        }
+      } else {
+        Alert.alert('Report Submitted', 'Thank you for your report. We will review it shortly.');
+      }
+    } catch (error) {
+      console.error('Failed to submit report:', error);
+      Alert.alert('Error', 'Failed to submit report');
+    } finally {
+      setIsReporting(false);
+    }
+  };
+
+  const handleCoffeeChat = async () => {
+    if (!user?.id || !post) return;
+
+    try {
+      const { data, error } = await supabase.rpc('get_or_create_post_conversation', {
+        p_post_id: post.id,
+        p_other_user_id: post.author_id,
+      });
+
+      if (error) throw error;
+
+      router.push({ pathname: '/chat/[id]', params: { id: data } });
+    } catch (error) {
+      console.error('Failed to start coffee chat:', error);
+      Alert.alert('Error', 'Failed to start conversation');
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -280,7 +343,15 @@ export default function PostDetailScreen() {
           >
             <View style={styles.postCard}>
               <View style={styles.postHeader}>
-                <Text style={styles.postTitle}>{post.title}</Text>
+                <View style={styles.postHeaderTop}>
+                  <Text style={[styles.postTitle, { flex: 1 }]}>{post.title}</Text>
+                  <TouchableOpacity onPress={handleReport} style={styles.reportButton}>
+                    <Image
+                      source={require('../../assets/report icon.png')}
+                      style={styles.reportIcon}
+                    />
+                  </TouchableOpacity>
+                </View>
                 <Text style={styles.postTime}>{formatDate(post.created_at)}</Text>
               </View>
 
@@ -324,6 +395,15 @@ export default function PostDetailScreen() {
                     />
                     <Text style={styles.statText}>{comments.length}</Text>
                   </View>
+
+                  {!post.is_anonymous && post.author_id !== user?.id && (
+                    <TouchableOpacity style={styles.statItem} onPress={handleCoffeeChat}>
+                      <Image
+                        source={require('../../assets/coffee_chat_icon.png')}
+                        style={styles.coffeeChatIcon}
+                      />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             </View>
@@ -430,6 +510,20 @@ const styles = StyleSheet.create({
   postHeader: {
     marginBottom: spacing.md,
   },
+  postHeaderTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  reportButton: {
+    padding: spacing.xs,
+    marginLeft: spacing.sm,
+  },
+  reportIcon: {
+    width: 20,
+    height: 20,
+    tintColor: colors.textSecondary,
+  },
   postTitle: {
     fontSize: fontSize.xxl,
     fontWeight: 'bold',
@@ -443,7 +537,7 @@ const styles = StyleSheet.create({
   postBody: {
     fontSize: fontSize.md,
     color: colors.text,
-    lineHeight: 24,
+    lineHeight: 20,
     marginBottom: spacing.md,
   },
   postFooter: {
@@ -475,6 +569,10 @@ const styles = StyleSheet.create({
   statTextLiked: {
     color: colors.error,
     fontWeight: '600',
+  },
+  coffeeChatIcon: {
+    width: 22,
+    height: 22,
   },
   commentsSection: {
     marginTop: spacing.md,

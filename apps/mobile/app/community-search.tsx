@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -14,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCommunityStore } from '../src/store/communityStore';
-import { BoardSelector } from '../src/components/community';
+import { PostCard } from '../src/components/community';
 import { colors, spacing, fontSize, borderRadius } from '../src/constants';
 
 const RECENT_SEARCHES_KEY = 'quadly_community_recent_searches';
@@ -38,12 +39,15 @@ async function saveRecentSearch(query: string): Promise<void> {
   await AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
 }
 
+const SEARCH_DEBOUNCE_MS = 400;
+
 export default function CommunitySearchScreen() {
   const router = useRouter();
-  const { initialize, isInitialized } = useCommunityStore();
+  const { initialize, isInitialized, searchPosts, searchResults, searchResultsLoading } = useCommunityStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const searchInputRef = useRef<TextInput>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshRecent = useCallback(async () => {
     const list = await loadRecentSearches();
@@ -64,6 +68,21 @@ export default function CommunitySearchScreen() {
     const t = setTimeout(() => searchInputRef.current?.focus(), 300);
     return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!searchQuery.trim()) {
+      searchPosts('');
+      return;
+    }
+    debounceRef.current = setTimeout(() => {
+      searchPosts(searchQuery);
+      debounceRef.current = null;
+    }, SEARCH_DEBOUNCE_MS);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchQuery, searchPosts]);
 
   const handleSubmitSearch = useCallback(() => {
     if (searchQuery.trim()) {
@@ -99,7 +118,7 @@ export default function CommunitySearchScreen() {
           <TextInput
             ref={searchInputRef}
             style={styles.searchInput}
-            placeholder="Search boards..."
+            placeholder="Search posts..."
             placeholderTextColor={colors.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -135,6 +154,10 @@ export default function CommunitySearchScreen() {
               )}
             </View>
           </ScrollView>
+        ) : searchResultsLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
         ) : (
           <ScrollView
             style={styles.scrollView}
@@ -142,7 +165,18 @@ export default function CommunitySearchScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <BoardSelector searchQuery={searchQuery} />
+            {searchResults.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No posts found</Text>
+                <Text style={styles.emptySubtext}>Try different keywords</Text>
+              </View>
+            ) : (
+              <View style={styles.resultsList}>
+                {searchResults.map((post) => (
+                  <PostCard key={post.id} post={post} />
+                ))}
+              </View>
+            )}
           </ScrollView>
         )}
       </SafeAreaView>
@@ -211,5 +245,28 @@ const styles = StyleSheet.create({
   recentItemText: {
     fontSize: fontSize.md,
     color: colors.text,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    paddingVertical: spacing.xl,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: fontSize.lg,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  emptySubtext: {
+    fontSize: fontSize.sm,
+    color: colors.textLight,
+  },
+  resultsList: {
+    padding: spacing.md,
+    paddingBottom: 100,
   },
 });

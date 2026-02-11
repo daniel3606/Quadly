@@ -6,18 +6,25 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useAuthStore } from '../../src/store/authStore';
 import { useCommunityStore } from '../../src/store/communityStore';
 import { PostList } from '../../src/components/community';
 import { colors, spacing, fontSize } from '../../src/constants';
 
+const TAB_BAR_HEIGHT = 85;
+const POST_BUTTON_ROW_HEIGHT = 60;
+
 export default function BoardDetailScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuthStore();
   const {
     boards,
     selectedBoardId,
@@ -27,6 +34,7 @@ export default function BoardDetailScreen() {
   } = useCommunityStore();
 
   const board = boards.find((b) => b.id === id);
+  const schoolName = (user?.user_metadata?.school as string) || 'Your University';
 
   useEffect(() => {
     if (!isInitialized) {
@@ -75,15 +83,46 @@ export default function BoardDetailScreen() {
         <StatusBar style="dark" />
 
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Text style={styles.backButtonText}>← Back</Text>
-          </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>{board.name}</Text>
+          <View style={styles.headerSide}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backButton}
+            >
+              <Image source={require('../../assets/back_icon.png')} style={styles.backIcon} resizeMode="contain" />
+            </TouchableOpacity>
           </View>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>{board.name}</Text>
+            <Text style={styles.schoolName} numberOfLines={1}>{schoolName}</Text>
+          </View>
+          <View style={styles.headerSide}>
+            <TouchableOpacity
+              style={styles.searchButton}
+              onPress={() => router.push('/community-search')}
+              activeOpacity={0.7}
+            >
+              <Image source={require('../../assets/search_icon.png')} style={styles.searchIcon} resizeMode="contain" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: POST_BUTTON_ROW_HEIGHT + insets.bottom + 20 + spacing.lg },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <PostList />
+        </ScrollView>
+
+        <View
+          style={[
+            styles.postButtonRow,
+            { paddingBottom: insets.bottom + 20 },
+          ]}
+        >
           <TouchableOpacity
             style={styles.createButton}
             onPress={handleCreatePost}
@@ -91,22 +130,6 @@ export default function BoardDetailScreen() {
             <Text style={styles.createButtonText}>+ Post</Text>
           </TouchableOpacity>
         </View>
-
-        {board.description && (
-          <View style={styles.descriptionContainer}>
-            <Text style={styles.description}>{board.description}</Text>
-          </View>
-        )}
-
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <PostList />
-        </ScrollView>
-
-        <View style={{ height: 85 }} />
       </SafeAreaView>
     </LinearGradient>
   );
@@ -128,56 +151,72 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     backgroundColor: 'transparent',
   },
+  headerSide: {
+    width: 44,
+    justifyContent: 'center',
+  },
   backButton: {
-    paddingRight: spacing.sm,
+    alignSelf: 'flex-start',
   },
-  backButtonText: {
-    fontSize: fontSize.md,
-    color: colors.primary,
-    fontWeight: '600',
+  backIcon: {
+    width: 24,
+    height: 24,
   },
-  headerContent: {
+  headerCenter: {
     flex: 1,
-    marginLeft: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 0,
   },
   headerTitle: {
-    fontSize: fontSize.xl,
+    fontSize: fontSize.lg,
     fontWeight: 'bold',
     color: colors.primary,
   },
+  schoolName: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary ?? colors.text,
+    marginTop: 1,
+  },
+  searchButton: {
+    alignSelf: 'flex-end',
+    padding: spacing.sm,
+  },
+  searchIcon: {
+    width: 24,
+    height: 24,
+  },
+  postButtonRow: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: 'transparent',
+  },
   createButton: {
     backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: 8,
-    marginLeft: spacing.sm,
   },
   createButtonText: {
     color: colors.background,
     fontSize: fontSize.md,
     fontWeight: '600',
   },
-  descriptionContainer: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  description: {
-    fontSize: fontSize.md,
-    color: colors.textLight,
-    lineHeight: 20,
-  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 100,
+    flexGrow: 1,
   },
 });

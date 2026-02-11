@@ -113,7 +113,7 @@ export default function ChatScreen() {
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.headerName} numberOfLines={1}>
-            {conversation?.other_user_name || 'Chat'}
+            {conversation ? 'Anonymous' : 'Chat'}
           </Text>
           {conversation?.listing_title && (
             <Text style={styles.headerListing} numberOfLines={1}>

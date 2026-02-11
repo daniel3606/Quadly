@@ -102,13 +102,11 @@ export function PostCard({ post }: PostCardProps) {
             />
             <Text style={styles.statText}>{post.comment_count}</Text>
           </View>
-        </View>
 
-        {post.is_anonymous && (
-          <View style={styles.anonymousBadge}>
-            <Text style={styles.anonymousText}>Anonymous</Text>
-          </View>
-        )}
+          <Text style={styles.authorName} numberOfLines={1}>
+            {post.is_anonymous ? 'Anonymous' : (post.author_display_name || 'User')}
+          </Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -119,14 +117,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderRadius: borderRadius.md,
     padding: spacing.md,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     ...cardShadow,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   title: {
     flex: 1,
@@ -134,56 +132,54 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
     marginRight: spacing.sm,
+    lineHeight: 20,
   },
   time: {
     fontSize: fontSize.xs,
     color: colors.textSecondary,
   },
   body: {
-    fontSize: fontSize.md,
+    fontSize: fontSize.sm,
     color: colors.textLight,
-    lineHeight: 20,
+    lineHeight: 12,
     marginBottom: spacing.md,
   },
   footer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
   stats: {
     flexDirection: 'row',
-    gap: spacing.md,
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
+    flex: 1,
   },
   statItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: 2,
   },
   statIcon: {
-    width: 16,
-    height: 16,
+    width: 14,
+    height: 14,
     tintColor: colors.textSecondary,
   },
   statIconLiked: {
     tintColor: colors.error,
   },
   statText: {
-    fontSize: fontSize.sm,
+    fontSize: fontSize.xs,
     color: colors.textSecondary,
   },
   statTextLiked: {
     color: colors.error,
     fontWeight: '600',
   },
-  anonymousBadge: {
-    backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
-  },
-  anonymousText: {
+  authorName: {
     fontSize: fontSize.xs,
-    color: colors.textLight,
-    fontWeight: '500',
+    color: colors.textSecondary,
+    marginLeft: spacing.xs,
+    maxWidth: 100,
   },
 });

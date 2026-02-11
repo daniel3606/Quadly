@@ -176,23 +176,6 @@ export default function ListingDetailScreen() {
               </View>
             )}
 
-            {/* Seller Info */}
-            <View style={styles.sellerRow}>
-              {currentListing.seller_avatar_url ? (
-                <Image
-                  source={{ uri: currentListing.seller_avatar_url }}
-                  style={styles.sellerAvatar}
-                />
-              ) : (
-                <View style={styles.sellerAvatarPlaceholder}>
-                  <Text style={styles.sellerAvatarText}>
-                    {currentListing.seller_name?.charAt(0)?.toUpperCase() || '?'}
-                  </Text>
-                </View>
-              )}
-              <Text style={styles.sellerName}>{currentListing.seller_name}</Text>
-            </View>
-
             {/* Description */}
             <Text style={styles.descriptionLabel}>Description</Text>
             <Text style={styles.description}>{currentListing.description}</Text>
@@ -333,41 +316,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',
-  },
-  sellerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    marginBottom: 16,
-  },
-  sellerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  sellerAvatarPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#00274C',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  sellerAvatarText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  sellerName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1a1a1a',
   },
   descriptionLabel: {
     fontSize: 14,
