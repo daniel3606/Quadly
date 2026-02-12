@@ -1,23 +1,46 @@
+'use client';
+
+import { useState } from 'react';
+import { useUser } from '@/lib/useUser';
+import Image from 'next/image';
+
 interface ProfileIconProps {
   className?: string;
   size?: number;
 }
 
 export function ProfileIcon({ className = '', size = 24 }: ProfileIconProps) {
+  const { user } = useUser();
+  const [avatarError, setAvatarError] = useState(false);
+  const avatarUrl =
+    (user?.user_metadata?.avatar_url ?? user?.user_metadata?.picture) as string | undefined;
+  const initial = user?.email?.charAt(0).toUpperCase() ?? '?';
+
+  if (avatarUrl && !avatarError) {
+    return (
+      <Image
+        src={avatarUrl}
+        alt="Profile"
+        width={size}
+        height={size}
+        className={`rounded-full object-cover ${className}`}
+        style={{ width: size, height: size }}
+        onError={() => setAvatarError(true)}
+        unoptimized
+      />
+    );
+  }
+
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
+    <div
+      className={`flex items-center justify-center rounded-full border-2 border-primary bg-icon-tint text-background font-semibold ${className}`}
+      style={{
+        width: size,
+        height: size,
+        fontSize: Math.round(size * 0.45),
+      }}
     >
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
+      {initial}
+    </div>
   );
 }

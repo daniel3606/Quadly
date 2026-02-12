@@ -22,18 +22,12 @@ export default function RootLayout({
           <ThemeProvider>
             <ApiProvider>
               <div className="flex-1">{children}</div>
-              <footer className="border-t border-gray-200 dark:border-gray-700 py-4 px-6 text-center text-sm text-gray-500 dark:text-gray-400">
-                <Link
-                  href="/terms"
-                  className="hover:text-gray-900 dark:hover:text-white underline"
-                >
+              <footer className="border-t border-border py-6 md:py-8 px-4 sm:px-6 lg:px-8 text-center text-sm md:text-base text-text-secondary">
+                <Link href="/terms" className="hover:text-primary dark:hover:text-background underline">
                   Terms of Service
                 </Link>
                 {' · '}
-                <Link
-                  href="/privacy"
-                  className="hover:text-gray-900 dark:hover:text-white underline"
-                >
+                <Link href="/privacy" className="hover:text-primary dark:hover:text-background underline">
                   Privacy Policy
                 </Link>
               </footer>

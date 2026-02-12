@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { apiClient } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { Header } from '@/components/Header';
 import { ProfileIcon } from '@/components/ProfileIcon';
 
-interface User {
+interface ProfileUser {
   id: string;
   email: string;
   nickname: string;
@@ -24,40 +24,47 @@ interface University {
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<ProfileUser | null>(null);
   const [collegeName, setCollegeName] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
+    async function loadProfile() {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) {
+        router.push('/login');
+        return;
+      }
 
-    apiClient.setToken(token);
+      const meta = authUser.user_metadata || {};
+      const universityId = meta.university_id ?? meta.school ?? '';
 
-    Promise.all([
-      apiClient.get<User>('/auth/me'),
-      apiClient.get<{ universities: University[] }>('/auth/universities'),
-    ])
-      .then(([userData, universitiesData]) => {
-        setUser(userData);
-        const university = universitiesData.universities.find(
-          (u) => u.id === userData.school
+      const profile: ProfileUser = {
+        id: authUser.id,
+        email: authUser.email ?? '',
+        nickname: meta.full_name || meta.nickname || authUser.email?.split('@')[0] || 'User',
+        email_verified: !!authUser.email_confirmed_at,
+        role: meta.role || 'user',
+        school: universityId,
+      };
+      setUser(profile);
+
+      if (universityId) {
+        const { data: universities } = await supabase
+          .from('universities')
+          .select('id, name, domain');
+        const university = (universities ?? []).find(
+          (u) => u.id === universityId
         );
-        if (university) {
-          setCollegeName(university.name);
-        }
-        setLoading(false);
-      })
-      .catch((error) => {
-        console.error('Failed to fetch data:', error);
-        setLoading(false);
-      });
+        if (university) setCollegeName(university.name);
+      }
+      setLoading(false);
+    }
+    loadProfile();
   }, [router]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     localStorage.removeItem('auth_token');
     router.push('/login');
   };
@@ -141,6 +148,12 @@ export default function ProfilePage() {
             Account Actions
           </h3>
           <div className="space-y-3">
+            <Link
+              href="/profile/edit"
+              className="block w-full px-4 py-2 bg-umich-blue text-white rounded-lg hover:bg-blue-800 transition-colors text-left"
+            >
+              Edit Profile
+            </Link>
             <button
               onClick={handleLogout}
               className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-left"

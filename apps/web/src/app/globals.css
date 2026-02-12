@@ -2,20 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Match mobile app design tokens */
 :root {
-  --foreground-rgb: 0, 0, 0;
+  --foreground-rgb: 26, 26, 26;
   --background-rgb: 255, 255, 255;
+  --background-subtle: #f6f6f6;
+  --border: #e0e0e0;
+  --text-secondary: #999999;
+  --primary: #000000;
+  --icon-tint: #00274C;
 }
 
 .dark {
   --foreground-rgb: 255, 255, 255;
-  --background-rgb: 17, 24, 39; /* gray-900 */
+  --background-rgb: 26, 26, 26;
+  --background-subtle: #1a1a1a;
+  --border: #333333;
+  --text-secondary: #999999;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
   background-color: rgb(var(--background-rgb));
   transition: background-color 0.2s ease, color 0.2s ease;
+  /* Web-friendly: comfortable reading */
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Keyboard focus for accessibility */
+a:focus-visible,
+button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(var(--background-rgb)), 0 0 0 4px var(--primary);
+}
+.dark a:focus-visible,
+.dark button:focus-visible {
+  box-shadow: 0 0 0 2px #1a1a1a, 0 0 0 4px #fff;
 }
 
 @keyframes slideIn {

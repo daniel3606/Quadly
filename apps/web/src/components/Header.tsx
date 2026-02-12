@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { apiClient } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { ThemeToggle } from './ThemeToggle';
 import { NotificationIcon } from './NotificationIcon';
 import { ProfileIcon } from './ProfileIcon';
@@ -22,37 +22,31 @@ export function Header() {
   }, []);
 
   useEffect(() => {
-    // Only run on client side
     if (typeof window === 'undefined') return;
-    
-    const token = localStorage.getItem('auth_token');
-    if (!token) return;
 
-    apiClient.setToken(token);
+    // Fetch university name from Supabase
+    supabase.auth.getUser().then(({ data }) => {
+      const universityId = data.user?.user_metadata?.university_id;
+      if (!universityId) return;
 
-    Promise.all([
-      apiClient.get<{ school: string }>('/auth/me'),
-      apiClient.get<{ universities: Array<{ id: string; name: string; domain: string }> }>('/auth/universities'),
-    ])
-      .then(([userData, universitiesData]) => {
-        const university = universitiesData.universities.find(
-          (u) => u.id === userData.school
-        );
-        if (university) {
-          setCollegeName(university.name);
-        }
-      })
-      .catch((error) => {
-        console.error('Failed to fetch data:', error);
-        // Don't throw error, just log it
-      });
+      supabase
+        .from('universities')
+        .select('name')
+        .eq('id', universityId)
+        .single()
+        .then(({ data: uni }) => {
+          if (uni?.name) setCollegeName(uni.name);
+        });
+    }).catch(() => {});
   }, []);
 
   const navItems = [
     { href: '/', label: 'Home' },
-    { href: '/boards', label: 'Boards' },
+    { href: '/boards', label: 'Community' },
+    { href: '/marketplace', label: 'Market' },
+    { href: '/messages', label: 'Messages' },
     { href: '/schedule', label: 'Schedule' },
-    { href: '/lectures', label: 'Lectures' },
+    { href: '/lectures', label: 'Classes' },
     { href: '/settings', label: 'Settings' },
   ];
 
@@ -60,71 +54,57 @@ export function Header() {
 
   if (!mounted) {
     return (
-      <div className="mb-8 border-b border-gray-200 dark:border-gray-700 pb-3">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-5">
-            <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+      <header className="mb-6 md:mb-8 border-b border-[var(--border)]">
+        <div className="flex justify-between items-center px-4 sm:px-6 lg:px-8 py-3 md:py-4">
+          <div className="flex items-center gap-2.5 md:gap-3">
+            <div className="w-9 h-9 md:w-10 md:h-10 bg-background-secondary rounded-[10px] animate-pulse" />
             <div>
-              <div className="h-8 w-28 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
-              <div className="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+              <div className="h-[18px] md:h-5 w-20 md:w-24 bg-background-secondary rounded animate-pulse mb-1" />
+              <div className="h-3 w-28 md:w-32 bg-background-secondary rounded animate-pulse" />
             </div>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-            <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-            <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-            <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-            <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-            <div className="w-9 h-9 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-            <div className="w-9 h-9 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+          <div className="flex items-center gap-2 md:gap-4">
+            <div className="w-9 h-9 md:w-10 md:h-10 bg-background-secondary rounded animate-pulse" />
+            <div className="w-9 h-9 md:w-10 md:h-10 bg-background-secondary rounded-full animate-pulse" />
           </div>
         </div>
-      </div>
+      </header>
     );
   }
 
   return (
-    <div className="mb-8">
-      {/* Header Row: Logo, Navigation, and Actions */}
-      <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
-        {/* Logo and Title - Left */}
-        <Link href="/" className="flex items-center gap-5 flex-shrink-0">
+    <header className="mb-6 md:mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 sm:px-6 lg:px-8 py-3 md:py-4 border-b border-[var(--border)] bg-transparent">
+        {/* Logo and title - scales up on desktop */}
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 md:gap-3 flex-shrink-0 rounded-lg focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+        >
           <Image
-            src="/QuadlyIcon01.png"
-            alt="Quadly Icon"
-            width={48}
-            height={48}
-            className="w-12 h-12"
-            onError={(e) => {
-              // Fallback if image fails to load
-              console.error('Failed to load Quadly icon');
-            }}
+            src="/assets/QuadlyIcon.jpg"
+            alt="Quadly"
+            width={44}
+            height={44}
+            className="w-9 h-9 md:w-10 md:h-10 lg:w-11 lg:h-11 rounded-[10px] object-cover"
           />
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-0">
+            <h1 className="text-lg md:text-xl font-bold text-primary leading-tight">
               Quadly
             </h1>
             {collegeName && (
-              <p className="text-gray-900 dark:text-white mt-0 text-base font-medium">
+              <p className="text-sm text-text-light mt-0.5 leading-tight hidden sm:block">
                 {collegeName}
               </p>
             )}
           </div>
         </Link>
 
-        {/* Navigation Items - Center */}
-        <nav className="flex items-center gap-1 flex-1 justify-center mx-8">
+        {/* Nav - wraps on small screens, comfortable padding on desktop */}
+        <nav className="flex flex-wrap items-center justify-center sm:justify-center gap-1 md:gap-2 flex-1 sm:mx-4" aria-label="Main">
           {navItems.map((item) => {
             let isActive = false;
             if (item.href === '/') {
-              // Home is active only on exact home page
               isActive = currentPath === '/';
-            } else if (item.href === '/boards') {
-              // Boards is active on /boards page or any /boards/* page
-              isActive = currentPath === '/boards' || currentPath.startsWith('/boards/');
             } else {
               isActive = currentPath === item.href || currentPath.startsWith(item.href + '/');
             }
@@ -132,10 +112,10 @@ export function Header() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                className={`px-3 py-2 md:px-4 md:py-2.5 text-sm font-medium transition-colors rounded-lg whitespace-nowrap ${
                   isActive
-                    ? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
+                    ? 'bg-primary text-background dark:bg-primary dark:text-background'
+                    : 'text-text-secondary hover:text-primary dark:hover:text-background hover:bg-background-secondary dark:hover:bg-white/10'
                 }`}
               >
                 {item.label}
@@ -144,35 +124,33 @@ export function Header() {
           })}
         </nav>
 
-        {/* Action Buttons - Right */}
-        <div className="flex items-center gap-3 flex-shrink-0">
+        {/* Actions - larger hit targets on desktop */}
+        <div className="flex items-center justify-end sm:justify-end gap-2 md:gap-4 flex-shrink-0">
           <button
             onClick={() => setNotificationsOpen(true)}
-            className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center rounded-lg hover:bg-background-secondary dark:hover:bg-white/10 transition-colors"
             aria-label="Notifications"
           >
             <NotificationIcon
-              className="w-5 h-5 text-gray-800 dark:text-gray-200"
-              size={20}
+              size={24}
               hasNotifications={unreadCount > 0}
             />
           </button>
           <ThemeToggle />
           <Link
             href="/profile"
-            className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center rounded-lg hover:bg-background-secondary dark:hover:bg-white/10 transition-colors"
             aria-label="Profile"
           >
-            <ProfileIcon className="w-5 h-5 text-gray-800 dark:text-gray-200" size={20} />
+            <ProfileIcon size={24} />
           </Link>
         </div>
       </div>
 
-      {/* Notifications Modal */}
       <NotificationsModal
         isOpen={notificationsOpen}
         onClose={() => setNotificationsOpen(false)}
       />
-    </div>
+    </header>
   );
 }

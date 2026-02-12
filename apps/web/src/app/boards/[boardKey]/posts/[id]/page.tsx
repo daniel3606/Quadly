@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { apiClient } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
+import { useUser } from '@/lib/useUser';
 import { Header } from '@/components/Header';
 
 interface Post {
@@ -50,6 +53,9 @@ export default function PostDetailPage() {
   const [loading, setLoading] = useState(true);
   const [commentBody, setCommentBody] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [showReportMenu, setShowReportMenu] = useState(false);
+  const [reportStatus, setReportStatus] = useState<'idle' | 'submitting' | 'done' | 'duplicate'>('idle');
+  const { user: supabaseUser } = useUser();
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
@@ -121,6 +127,47 @@ export default function PostDetailPage() {
     }
   };
 
+  const handleReport = async (reason: string) => {
+    if (!supabaseUser || !post) return;
+    setReportStatus('submitting');
+    try {
+      const { error } = await supabase.from('post_reports').insert({
+        post_id: post.id,
+        reporter_id: supabaseUser.id,
+        reason,
+      });
+      if (error) {
+        if (error.code === '23505') {
+          setReportStatus('duplicate');
+        } else {
+          throw error;
+        }
+      } else {
+        setReportStatus('done');
+      }
+    } catch (error) {
+      console.error('Failed to report post:', error);
+      alert('Failed to submit report.');
+      setReportStatus('idle');
+    }
+    setShowReportMenu(false);
+  };
+
+  const handleCoffeeChat = async () => {
+    if (!supabaseUser || !post?.author?.id) return;
+    try {
+      const { data, error } = await supabase.rpc('get_or_create_post_conversation', {
+        p_post_id: post.id,
+        p_other_user_id: post.author.id,
+      });
+      if (error) throw error;
+      router.push(`/messages/${data}`);
+    } catch (error) {
+      console.error('Failed to start coffee chat:', error);
+      alert('Failed to start conversation.');
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString('en-US', {
@@ -134,10 +181,10 @@ export default function PostDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-white dark:bg-gray-900 flex items-center justify-center">
+      <main className="min-h-screen bg-gradient-to-b from-background to-background-subtle dark:from-[#1a1a1a] dark:to-[#0d0d0d] flex items-center justify-center p-8 md:p-12">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-2 border-border border-t-primary mx-auto mb-4"></div>
+          <p className="text-sm md:text-base text-text-secondary">Loading...</p>
         </div>
       </main>
     );
@@ -148,25 +195,26 @@ export default function PostDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-white dark:bg-gray-900">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main className="min-h-screen bg-gradient-to-b from-background to-background-subtle dark:from-[#1a1a1a] dark:to-[#0d0d0d]">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
         <Header />
-        
-        <div className="mb-4">
+
+        <div className="mb-4 md:mb-6">
           <Link
             href={`/boards/${boardKey}`}
-            className="text-blue-600 dark:text-blue-400 hover:underline"
+            className="text-link hover:underline text-sm md:text-base font-medium inline-flex items-center gap-2 rounded focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
-            ← Back to {post.board?.name || 'Board'}
+            <Image src="/assets/back_icon.png" alt="" width={16} height={16} className="dark:invert" />
+            Back to {post.board?.name || 'Board'}
           </Link>
         </div>
 
-        {/* Post */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+        {/* Post card - readable width and padding on desktop */}
+        <article className="bg-background dark:bg-white/5 rounded-card shadow-card border border-border/50 p-6 md:p-8 mb-6 md:mb-8">
+          <h1 className="text-xl md:text-2xl font-semibold text-text mb-3 md:mb-4 leading-tight">
             {post.title}
           </h1>
-          <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-6">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs md:text-sm text-text-secondary mb-4 md:mb-6">
             <span>
               {post.is_anonymous
                 ? post.author.anonymous_handle || 'Anonymous'
@@ -174,85 +222,142 @@ export default function PostDetailPage() {
             </span>
             <span>·</span>
             <span>{formatDate(post.created_at)}</span>
-            <span>·</span>
-            <span>👁️ {post.view_count}</span>
+            <span className="flex items-center gap-1">
+              <Image src="/assets/view_icon.png" alt="" width={12} height={12} className="opacity-70 dark:invert" />
+              {post.view_count}
+            </span>
           </div>
-          <div className="prose dark:prose-invert max-w-none mb-6">
-            <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+          <div className="prose dark:prose-invert max-w-none mb-6 md:mb-8">
+            <p className="whitespace-pre-wrap text-sm md:text-base text-text-light leading-relaxed max-w-none">
               {post.body}
             </p>
           </div>
-          <div className="flex items-center gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex flex-wrap items-center gap-3 md:gap-4 pt-4 md:pt-6 border-t border-border">
             <button
               onClick={handleLike}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
                 post.is_liked
-                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  ? 'text-error font-semibold'
+                  : 'text-text-secondary hover:text-text'
               }`}
             >
-              👍 {post.like_count}
+              <img
+                src="/assets/like_icon.png"
+                alt=""
+                width={14}
+                height={14}
+                className={post.is_liked ? 'opacity-100' : 'opacity-70'}
+                style={post.is_liked ? { filter: 'brightness(0) saturate(100%) invert(27%) sepia(98%) saturate(2947%) hue-rotate(346deg)' } : undefined}
+              />
+              {post.like_count}
             </button>
-            <span className="text-gray-500 dark:text-gray-400">💬 {post.comment_count}</span>
+            <span className="flex items-center gap-2 text-text-secondary text-sm">
+              <Image src="/assets/comment_icon.png" alt="" width={14} height={14} className="opacity-70 dark:invert" />
+              {post.comment_count}
+            </span>
+
+            <div className="ml-auto flex items-center gap-2">
+              {/* Coffee Chat */}
+              {!post.is_anonymous && post.author?.id && supabaseUser?.id !== post.author.id && (
+                <button
+                  onClick={handleCoffeeChat}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-background-secondary dark:bg-white/10 text-text hover:opacity-90 text-sm font-medium"
+                >
+                  <Image src="/assets/coffee_chat_icon.png" alt="" width={16} height={16} />
+                  Coffee Chat
+                </button>
+              )}
+
+              {/* Report */}
+              <div className="relative">
+                {reportStatus === 'done' ? (
+                  <span className="px-3 py-2 text-sm text-success font-medium">Reported</span>
+                ) : reportStatus === 'duplicate' ? (
+                  <span className="px-3 py-2 text-sm text-text-secondary">Already reported</span>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setShowReportMenu(!showReportMenu)}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-background-secondary dark:bg-white/10 text-text-secondary hover:text-text text-sm"
+                    >
+                      <Image src="/assets/report_icon.png" alt="" width={14} height={14} className="opacity-80 dark:invert" />
+                      Report
+                    </button>
+                    {showReportMenu && (
+                      <div className="absolute right-0 bottom-full mb-2 w-48 bg-background dark:bg-white/10 rounded-card shadow-card border border-border py-1 z-10">
+                        {['Spam', 'Harassment', 'Inappropriate', 'Misinformation', 'Other'].map((reason) => (
+                          <button
+                            key={reason}
+                            onClick={() => handleReport(reason)}
+                            disabled={reportStatus === 'submitting'}
+                            className="w-full text-left px-4 py-2 text-sm text-text hover:bg-background-secondary dark:hover:bg-white/10 transition-colors"
+                          >
+                            {reason}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
+        </article>
 
         {/* Comments */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+        <section className="bg-background dark:bg-white/5 rounded-card shadow-card border border-border/50 p-6 md:p-8">
+          <h2 className="text-base md:text-lg font-semibold text-text mb-4 md:mb-6">
             Comments ({comments.length})
           </h2>
 
-          {/* Comment Form */}
-          <form onSubmit={handleCommentSubmit} className="mb-6">
+          <form onSubmit={handleCommentSubmit} className="mb-6 md:mb-8">
             <textarea
               value={commentBody}
               onChange={(e) => setCommentBody(e.target.value)}
               placeholder="Enter comment..."
               rows={3}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none mb-2"
+              className="w-full px-4 py-3 md:py-3.5 border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary bg-background dark:bg-white/5 text-text dark:text-white resize-none mb-3 text-sm md:text-base"
             />
             <div className="flex justify-end">
               <button
                 type="submit"
                 disabled={submittingComment || !commentBody.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2.5 md:px-5 md:py-3 bg-primary text-background rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity font-medium text-sm md:text-base"
               >
                 {submittingComment ? 'Posting...' : 'Post Comment'}
               </button>
             </div>
           </form>
 
-          {/* Comments List */}
-          <div className="space-y-4">
+          <div className="space-y-3 md:space-y-4">
             {comments.length === 0 ? (
-              <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+              <p className="text-text-secondary text-sm md:text-base text-center py-8 md:py-10">
                 No comments yet.
               </p>
             ) : (
               comments.map((comment) => (
                 <div
                   key={comment.id}
-                  className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg"
+                  className="p-4 md:p-5 border border-border rounded-card bg-background-secondary/30 dark:bg-white/5"
                 >
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    <span className="text-sm md:text-base font-medium text-text">
                       {comment.is_anonymous
                         ? comment.author.anonymous_handle || 'Anonymous'
                         : comment.author.nickname || 'Unknown'}
                     </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                    <span className="text-xs md:text-sm text-text-secondary">
                       {formatDate(comment.created_at)}
                     </span>
                   </div>
-                  <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                  <p className="text-sm md:text-base text-text-light whitespace-pre-wrap leading-relaxed">
                     {comment.body}
                   </p>
                 </div>
               ))
             )}
           </div>
-        </div>
+        </section>
       </div>
     </main>
   );
