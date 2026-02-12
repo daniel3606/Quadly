@@ -669,10 +669,10 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
           p.id === postId ? { ...p, view_count: p.view_count + 1 } : p
         );
         set({ posts: updatedPosts, searchResults: updatedSearch });
-
-        // Refresh boards with latest posts to update unread indicators
-        await get().fetchBoardsWithLatestPost();
       }
+
+      // Always refresh boards to update unread indicators
+      await get().fetchBoardsWithLatestPost();
     } catch (error) {
       console.error('Failed to increment view count:', error);
     }

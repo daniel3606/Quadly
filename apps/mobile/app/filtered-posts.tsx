@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -35,6 +36,8 @@ export default function FilteredPostsScreen() {
     fetchMyCommentedPosts,
   } = useCommunityStore();
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const title = FILTER_TITLES[filter || ''] || 'Posts';
 
   useEffect(() => {
@@ -43,12 +46,23 @@ export default function FilteredPostsScreen() {
     }
   }, [isInitialized]);
 
+  const refreshFilter = useCallback(async () => {
+    if (!filter) return;
+    if (filter === 'my-posts') await fetchMyPosts();
+    else if (filter === 'liked') await fetchLikedPosts();
+    else if (filter === 'my-comments') await fetchMyCommentedPosts();
+  }, [filter]);
+
   useEffect(() => {
     if (!isInitialized || !filter) return;
-    if (filter === 'my-posts') fetchMyPosts();
-    else if (filter === 'liked') fetchLikedPosts();
-    else if (filter === 'my-comments') fetchMyCommentedPosts();
+    refreshFilter();
   }, [isInitialized, filter]);
+
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await refreshFilter();
+    setIsRefreshing(false);
+  }, [refreshFilter]);
 
   return (
     <LinearGradient
@@ -80,6 +94,9 @@ export default function FilteredPostsScreen() {
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+            }
           >
             {filteredPosts.length === 0 ? (
               <View style={styles.emptyContainer}>

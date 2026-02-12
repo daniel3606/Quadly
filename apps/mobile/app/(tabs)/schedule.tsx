@@ -863,7 +863,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md,
   },
   addButtonText: { fontSize: fontSize.xl, fontWeight: 'bold', color: '#ffffff' },
-  universityName: { fontSize: fontSize.xl, fontWeight: '700', color: colors.text },
+  universityName: { fontSize: fontSize.xl, fontWeight: '700', color: '#606060' },
   termDropdown: { flexDirection: 'row', alignItems: 'center' },
   termText: { fontSize: fontSize.xl, fontWeight: '600', color: colors.text },
   termArrow: { fontSize: fontSize.xs, color: colors.textLight, marginLeft: 2 },

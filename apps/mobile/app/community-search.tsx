@@ -8,6 +8,7 @@ import {
   TextInput,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -45,6 +46,7 @@ export default function CommunitySearchScreen() {
   const router = useRouter();
   const { initialize, isInitialized, searchPosts, searchResults, searchResultsLoading } = useCommunityStore();
   const [searchQuery, setSearchQuery] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const searchInputRef = useRef<TextInput>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -94,6 +96,13 @@ export default function CommunitySearchScreen() {
   const handleRecentPress = useCallback((query: string) => {
     setSearchQuery(query);
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    if (!searchQuery.trim()) return;
+    setIsRefreshing(true);
+    await searchPosts(searchQuery);
+    setIsRefreshing(false);
+  }, [searchQuery]);
 
   const showRecent = searchQuery.length === 0;
 
@@ -164,6 +173,9 @@ export default function CommunitySearchScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+            }
           >
             {searchResults.length === 0 ? (
               <View style={styles.emptyContainer}>

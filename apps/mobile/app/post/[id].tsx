@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -37,6 +38,9 @@ export default function PostDetailScreen() {
   const { user } = useAuthStore();
   
   const [post, setPost] = useState<any>(null);
+  const [board, setBoard] = useState<{ name: string } | null>(null);
+  const [authorDisplayName, setAuthorDisplayName] = useState<string | null>(null);
+  const [authorAvatarUrl, setAuthorAvatarUrl] = useState<string | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLiked, setIsLiked] = useState(false);
@@ -45,6 +49,9 @@ export default function PostDetailScreen() {
   const [commentText, setCommentText] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isReporting, setIsReporting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const schoolName = (user?.user_metadata?.school as string) || 'Your University';
 
   useEffect(() => {
     if (id) {
@@ -68,6 +75,35 @@ export default function PostDetailScreen() {
       setPost(data);
       setLikeCount(data.like_count);
       setViewCount(data.view_count);
+
+      if (data.board_id) {
+        try {
+          const { data: boardData } = await supabase
+            .from('boards')
+            .select('name')
+            .eq('id', data.board_id)
+            .single();
+          setBoard(boardData);
+        } catch (_) {
+          // Board fetch optional
+        }
+      }
+
+      if (!data.is_anonymous && data.author_id) {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('display_name, avatar_url')
+            .eq('id', data.author_id)
+            .single();
+          if (profile) {
+            setAuthorDisplayName(profile.display_name ?? null);
+            setAuthorAvatarUrl(profile.avatar_url ?? null);
+          }
+        } catch (_) {
+          // Profiles optional; will show "User" and placeholder avatar
+        }
+      }
     } catch (error) {
       console.error('Failed to load post:', error);
       Alert.alert('Error', 'Failed to load post');
@@ -207,6 +243,12 @@ export default function PostDetailScreen() {
     }
   };
 
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await Promise.all([loadPost(), loadComments(), checkLikeStatus()]);
+    setIsRefreshing(false);
+  }, [id]);
+
   const handleReport = () => {
     if (!user?.id) {
       Alert.alert('Login Required', 'Please login to report posts');
@@ -284,6 +326,17 @@ export default function PostDetailScreen() {
     return date.toLocaleDateString();
   };
 
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
   if (isLoading) {
     return (
       <LinearGradient
@@ -323,12 +376,39 @@ export default function PostDetailScreen() {
         <StatusBar style="dark" />
 
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Text style={styles.backButtonText}>← Back</Text>
-          </TouchableOpacity>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backButton}
+            >
+              <Image
+                source={require('../../assets/back_icon.png')}
+                style={styles.backIcon}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+            <View style={styles.headerTitles}>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {board?.name ?? 'Discussion'}
+              </Text>
+              <Text style={styles.schoolName} numberOfLines={1}>
+                {schoolName}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.headerSide}>
+            <TouchableOpacity
+              onPress={handleReport}
+              style={styles.reportButtonHeader}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Image
+                source={require('../../assets/report_icon.png')}
+                style={styles.reportIconHeader}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <KeyboardAvoidingView
@@ -340,71 +420,91 @@ export default function PostDetailScreen() {
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+            }
           >
             <View style={styles.postCard}>
-              <View style={styles.postHeader}>
-                <View style={styles.postHeaderTop}>
-                  <Text style={[styles.postTitle, { flex: 1 }]}>{post.title}</Text>
-                  <TouchableOpacity onPress={handleReport} style={styles.reportButton}>
-                    <Image
-                      source={require('../../assets/report icon.png')}
-                      style={styles.reportIcon}
-                    />
-                  </TouchableOpacity>
+              <View style={styles.authorRow}>
+                {post.is_anonymous ? (
+                  <Image
+                    source={require('../../assets/anon_profile_icon.png')}
+                    style={styles.authorAvatar}
+                  />
+                ) : authorAvatarUrl ? (
+                  <Image
+                    source={{ uri: authorAvatarUrl }}
+                    style={styles.authorAvatar}
+                  />
+                ) : (
+                  <View style={styles.authorAvatarPlaceholder}>
+                    <Text style={styles.authorAvatarPlaceholderText}>
+                      {(authorDisplayName || 'U').charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.authorInfo}>
+                  <Text style={styles.authorName}>
+                    {post.is_anonymous ? 'Anonymous' : (authorDisplayName || 'User')}
+                  </Text>
+                  <Text style={styles.postTime}>
+                    {formatDateTime(post.created_at)}
+                  </Text>
                 </View>
-                <Text style={styles.postTime}>{formatDate(post.created_at)}</Text>
               </View>
 
+              <Text style={styles.postTitle}>{post.title}</Text>
               <Text style={styles.postBody}>{post.body}</Text>
 
               <View style={styles.postFooter}>
-                <View style={styles.stats}>
-                  <View style={styles.statItem}>
-                    <Image
-                      source={require('../../assets/view_icon.png')}
-                      style={styles.statIcon}
-                    />
-                    <Text style={styles.statText}>{viewCount}</Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.statItem}
-                    onPress={handleLike}
-                  >
-                    <Image
-                      source={require('../../assets/like_icon.png')}
-                      style={[
-                        styles.statIcon,
-                        isLiked && styles.statIconLiked,
-                      ]}
-                    />
-                    <Text
-                      style={[
-                        styles.statText,
-                        isLiked && styles.statTextLiked,
-                      ]}
-                    >
-                      {likeCount}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <View style={styles.statItem}>
-                    <Image
-                      source={require('../../assets/comment_icon.png')}
-                      style={styles.statIcon}
-                    />
-                    <Text style={styles.statText}>{comments.length}</Text>
-                  </View>
-
-                  {!post.is_anonymous && post.author_id !== user?.id && (
-                    <TouchableOpacity style={styles.statItem} onPress={handleCoffeeChat}>
+                <View style={styles.statsContainer}>
+                  <View style={styles.stats}>
+                    <View style={[styles.statItem, styles.statItemSection]}>
                       <Image
-                        source={require('../../assets/coffee_chat_icon.png')}
-                        style={styles.coffeeChatIcon}
+                        source={require('../../assets/view_icon.png')}
+                        style={styles.statIcon}
                       />
+                      <Text style={styles.statText}>{viewCount}</Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[styles.statItem, styles.statItemSection]}
+                      onPress={handleLike}
+                    >
+                      <Image
+                        source={require('../../assets/like_icon.png')}
+                        style={[
+                          styles.statIcon,
+                          isLiked && styles.statIconLiked,
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.statText,
+                          isLiked && styles.statTextLiked,
+                        ]}
+                      >
+                        {likeCount}
+                      </Text>
                     </TouchableOpacity>
-                  )}
+
+                    <View style={[styles.statItem, styles.statItemSection]}>
+                      <Image
+                        source={require('../../assets/comment_icon.png')}
+                        style={styles.statIcon}
+                      />
+                      <Text style={styles.statText}>{comments.length}</Text>
+                    </View>
+                  </View>
                 </View>
+                {!post.is_anonymous && post.author_id !== user?.id && (
+                  <TouchableOpacity style={styles.statItem} onPress={handleCoffeeChat}>
+                    <Image
+                      source={require('../../assets/coffee_chat_icon.png')}
+                      style={styles.coffeeChatIcon}
+                    />
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
 
@@ -414,9 +514,17 @@ export default function PostDetailScreen() {
               {comments.map((comment) => (
                 <View key={comment.id} style={styles.commentCard}>
                   <View style={styles.commentHeader}>
-                    <Text style={styles.commentAuthor}>
-                      {comment.is_anonymous ? 'Anonymous' : 'User'}
-                    </Text>
+                    <View style={styles.commentAuthorRow}>
+                      {comment.is_anonymous ? (
+                        <Image
+                          source={require('../../assets/anon_profile_icon.png')}
+                          style={styles.commentAuthorIcon}
+                        />
+                      ) : null}
+                      <Text style={styles.commentAuthor}>
+                        {comment.is_anonymous ? 'Anonymous' : 'User'}
+                      </Text>
+                    </View>
                     <Text style={styles.commentTime}>
                       {formatDate(comment.created_at)}
                     </Text>
@@ -477,18 +585,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    backgroundColor: 'transparent',
+  },
+  headerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+    gap: spacing.sm,
   },
   backButton: {
-    paddingVertical: spacing.sm,
+    alignSelf: 'flex-start',
   },
-  backButtonText: {
-    fontSize: fontSize.md,
+  backIcon: {
+    width: 24,
+    height: 24,
+  },
+  headerTitles: {
+    flex: 1,
+    justifyContent: 'center',
+    minWidth: 0,
+  },
+  headerTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: 'bold',
     color: colors.primary,
-    fontWeight: '600',
+  },
+  schoolName: {
+    fontSize: fontSize.sm,
+    color: '#606060',
+    marginTop: 1,
+  },
+  headerSide: {
+    width: 44,
+    justifyContent: 'center',
+  },
+  reportButtonHeader: {
+    alignSelf: 'flex-end',
+    padding: spacing.sm,
+  },
+  reportIconHeader: {
+    width: 22,
+    height: 22,
+    tintColor: colors.textSecondary,
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -507,52 +652,88 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     ...cardShadow,
   },
-  postHeader: {
+  authorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: spacing.md,
   },
-  postHeaderTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+  authorAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: spacing.sm,
   },
-  reportButton: {
-    padding: spacing.xs,
-    marginLeft: spacing.sm,
+  authorAvatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: spacing.sm,
+    backgroundColor: colors.backgroundSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  reportIcon: {
-    width: 20,
-    height: 20,
-    tintColor: colors.textSecondary,
+  authorAvatarPlaceholderText: {
+    fontSize: fontSize.lg,
+    fontWeight: '600',
+    color: colors.textSecondary,
   },
-  postTitle: {
-    fontSize: fontSize.xxl,
-    fontWeight: 'bold',
+  authorInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  authorName: {
+    fontSize: fontSize.md,
+    fontWeight: '600',
     color: colors.text,
-    marginBottom: spacing.xs,
   },
   postTime: {
     fontSize: fontSize.xs,
     color: colors.textSecondary,
+    marginTop: 2,
+  },
+  postTitle: {
+    fontSize: fontSize.xl,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: spacing.sm,
   },
   postBody: {
     fontSize: fontSize.md,
     color: colors.text,
-    lineHeight: 20,
+    lineHeight: 14,
     marginBottom: spacing.md,
   },
   postFooter: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingTop: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  statsContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
   },
   stats: {
+    flex: 1,
     flexDirection: 'row',
-    gap: spacing.lg,
+    alignItems: 'center',
   },
   statItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+  },
+  statItemSection: {
+    flex: 1,
+    justifyContent: 'center',
   },
   statIcon: {
     width: 18,
@@ -563,7 +744,7 @@ const styles = StyleSheet.create({
     tintColor: colors.error,
   },
   statText: {
-    fontSize: fontSize.md,
+    fontSize: fontSize.sm,
     color: colors.textSecondary,
   },
   statTextLiked: {
@@ -593,7 +774,18 @@ const styles = StyleSheet.create({
   commentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: spacing.xs,
+  },
+  commentAuthorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  commentAuthorIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
   },
   commentAuthor: {
     fontSize: fontSize.sm,

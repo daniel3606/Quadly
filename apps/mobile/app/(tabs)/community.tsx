@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { View, StyleSheet, Text, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, StyleSheet, Text, ScrollView, TouchableOpacity, Image, Alert, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,7 +12,8 @@ import { colors, spacing, fontSize } from '../../src/constants';
 export default function CommunityScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { initialize, isInitialized } = useCommunityStore();
+  const { initialize, isInitialized, fetchBoards } = useCommunityStore();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const schoolName = (user?.user_metadata?.school as string) || 'Your University';
 
@@ -21,6 +22,12 @@ export default function CommunityScreen() {
       initialize();
     }
   }, [isInitialized]);
+
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await fetchBoards();
+    setIsRefreshing(false);
+  }, []);
 
   return (
     <LinearGradient
@@ -85,6 +92,9 @@ export default function CommunityScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+          }
         >
           <BoardSelector />
         </ScrollView>
@@ -122,7 +132,7 @@ const styles = StyleSheet.create({
   },
   schoolName: {
     fontSize: fontSize.sm,
-    color: colors.textSecondary ?? colors.text,
+    color: '#606060',
     marginTop: 2,
   },
   searchButton: {

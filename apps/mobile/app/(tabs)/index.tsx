@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -74,6 +75,7 @@ export default function HomeScreen() {
   
   const [hotPosts, setHotPosts] = useState<Post[]>([]);
   const [isLoadingHotPosts, setIsLoadingHotPosts] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const userEmail = user?.email ?? 'user@example.com';
   const userInitial = userEmail.charAt(0).toUpperCase();
@@ -239,6 +241,12 @@ export default function HomeScreen() {
 
   const currentTimeY = getCurrentTimePosition();
 
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await Promise.all([fetchBoardsWithLatestPost(), fetchHotPosts()]);
+    setIsRefreshing(false);
+  }, []);
+
   const handleBoardPress = (boardId: string) => {
     router.push({
       pathname: '/board/[id]',
@@ -318,6 +326,9 @@ export default function HomeScreen() {
           style={styles.content}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.contentContainer}
+          refreshControl={
+            <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+          }
         >
           {/* Schedule Preview */}
           <View style={styles.section}>
@@ -547,8 +558,8 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   subtitle: {
-    fontSize: 11,
-    color: '#666666',
+    fontSize: fontSize.sm,
+    color: '#606060',
     marginTop: 1,
   },
   headerRight: {

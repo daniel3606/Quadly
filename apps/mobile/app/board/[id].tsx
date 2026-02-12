@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -31,7 +32,9 @@ export default function BoardDetailScreen() {
     setSelectedBoard,
     initialize,
     isInitialized,
+    fetchPosts,
   } = useCommunityStore();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const board = boards.find((b) => b.id === id);
   const schoolName = (user?.user_metadata?.school as string) || 'Your University';
@@ -46,6 +49,13 @@ export default function BoardDetailScreen() {
     if (id && id !== selectedBoardId) {
       setSelectedBoard(id);
     }
+  }, [id]);
+
+  const onRefresh = useCallback(async () => {
+    if (!id) return;
+    setIsRefreshing(true);
+    await fetchPosts(id);
+    setIsRefreshing(false);
   }, [id]);
 
   const handleCreatePost = () => {
@@ -113,6 +123,9 @@ export default function BoardDetailScreen() {
             { paddingBottom: POST_BUTTON_ROW_HEIGHT + insets.bottom + 20 + spacing.lg },
           ]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+          }
         >
           <PostList />
         </ScrollView>
@@ -179,8 +192,8 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   schoolName: {
-    fontSize: fontSize.xs,
-    color: colors.textSecondary ?? colors.text,
+    fontSize: fontSize.sm,
+    color: '#606060',
     marginTop: 1,
   },
   searchButton: {
